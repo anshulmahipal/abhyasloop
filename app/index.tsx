@@ -1,24 +1,23 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, useWindowDimensions } from 'react-native';
 import { Link } from 'expo-router';
 
-const containerMaxWidth = 800;
+import { FeatureCard } from '../components/FeatureCard';
+
+const CONTAINER_MAX_WIDTH = 800;
+const MOBILE_BREAKPOINT = 768;
 
 export default function LandingPage() {
   const { width } = useWindowDimensions();
-  const isMobile = width < 768;
+  const isMobile = width < MOBILE_BREAKPOINT;
 
   return (
-    <ScrollView 
-      style={styles.scrollView}
-      contentContainerStyle={styles.scrollContent}
-    >
-      <View style={[styles.container, { maxWidth: containerMaxWidth, paddingHorizontal: isMobile ? 20 : 40, paddingVertical: isMobile ? 40 : 60 }]}>
-        {/* Hero Section */}
-        <View style={[styles.heroSection, { marginBottom: isMobile ? 50 : 80, paddingTop: isMobile ? 40 : 60 }]}>
-          <Text style={[styles.heroTitle, { fontSize: isMobile ? 32 : 48, lineHeight: isMobile ? 40 : 56 }]}>
+    <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <View style={[styles.container, isMobile ? styles.containerMobile : styles.containerDesktop]}>
+        <View style={[styles.heroSection, isMobile ? styles.heroSectionMobile : styles.heroSectionDesktop]}>
+          <Text style={[styles.heroTitle, isMobile && styles.heroTitleMobile]}>
             Master Govt Exams with Infinite Practice
           </Text>
-          <Text style={[styles.heroSubtitle, { fontSize: isMobile ? 16 : 20, lineHeight: isMobile ? 24 : 30, paddingHorizontal: isMobile ? 0 : 20 }]}>
+          <Text style={[styles.heroSubtitle, isMobile && styles.heroSubtitleMobile]}>
             Prepare smarter, practice endlessly, and ace your government exams with AI-powered questions and instant feedback.
           </Text>
           <Link href="/auth/login" asChild>
@@ -28,42 +27,29 @@ export default function LandingPage() {
           </Link>
         </View>
 
-        {/* Features Grid */}
         <View style={styles.featuresSection}>
-          <Text style={[styles.featuresTitle, { fontSize: isMobile ? 28 : 36 }]}>Why Choose AbhyasLoop?</Text>
-          <View style={[styles.featuresGrid, { flexDirection: isMobile ? 'column' : 'row' }]}>
-            {/* Feature Card 1 */}
-            <View style={[styles.featureCard, { marginBottom: isMobile ? 20 : 0, marginRight: isMobile ? 0 : 12 }]}>
-              <View style={styles.featureIcon}>
-                <Text style={styles.featureIconText}>🤖</Text>
-              </View>
-              <Text style={styles.featureTitle}>AI Logic</Text>
-              <Text style={styles.featureDescription}>
-                Advanced AI algorithms generate questions that match real exam patterns and difficulty levels.
-              </Text>
-            </View>
-
-            {/* Feature Card 2 */}
-            <View style={[styles.featureCard, { marginBottom: isMobile ? 20 : 0, marginRight: isMobile ? 0 : 12 }]}>
-              <View style={styles.featureIcon}>
-                <Text style={styles.featureIconText}>📊</Text>
-              </View>
-              <Text style={styles.featureTitle}>Exam Patterns</Text>
-              <Text style={styles.featureDescription}>
-                Questions designed based on actual government exam patterns and previous year papers.
-              </Text>
-            </View>
-
-            {/* Feature Card 3 */}
-            <View style={[styles.featureCard, { marginBottom: isMobile ? 20 : 0 }]}>
-              <View style={styles.featureIcon}>
-                <Text style={styles.featureIconText}>⚡</Text>
-              </View>
-              <Text style={styles.featureTitle}>Instant Results</Text>
-              <Text style={styles.featureDescription}>
-                Get immediate feedback with detailed explanations and performance analytics after each quiz.
-              </Text>
-            </View>
+          <Text style={[styles.featuresTitle, isMobile && styles.featuresTitleMobile]}>
+            Why Choose AbhyasLoop?
+          </Text>
+          <View style={[styles.featuresGrid, isMobile && styles.featuresGridMobile]}>
+            <FeatureCard
+              icon="🤖"
+              title="AI Logic"
+              description="Advanced AI algorithms generate questions that match real exam patterns and difficulty levels."
+              isMobile={isMobile}
+            />
+            <FeatureCard
+              icon="📊"
+              title="Exam Patterns"
+              description="Questions designed based on actual government exam patterns and previous year papers."
+              isMobile={isMobile}
+            />
+            <FeatureCard
+              icon="⚡"
+              title="Instant Results"
+              description="Get immediate feedback with detailed explanations and performance analytics after each quiz."
+              isMobile={isMobile}
+            />
           </View>
         </View>
       </View>
@@ -81,22 +67,53 @@ const styles = StyleSheet.create({
   },
   container: {
     width: '100%',
+    maxWidth: CONTAINER_MAX_WIDTH,
     alignSelf: 'center',
+  },
+  containerMobile: {
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+  containerDesktop: {
+    paddingHorizontal: 40,
+    paddingVertical: 60,
   },
   heroSection: {
     alignItems: 'center',
   },
+  heroSectionMobile: {
+    marginBottom: 50,
+    paddingTop: 40,
+  },
+  heroSectionDesktop: {
+    marginBottom: 80,
+    paddingTop: 60,
+  },
   heroTitle: {
+    fontSize: 48,
     fontWeight: '700',
     color: '#1a1a1a',
     textAlign: 'center',
     marginBottom: 20,
+    lineHeight: 56,
     letterSpacing: -0.5,
   },
+  heroTitleMobile: {
+    fontSize: 32,
+    lineHeight: 40,
+  },
   heroSubtitle: {
+    fontSize: 20,
     color: '#666',
     textAlign: 'center',
     marginBottom: 40,
+    lineHeight: 30,
+    paddingHorizontal: 20,
+  },
+  heroSubtitleMobile: {
+    fontSize: 16,
+    lineHeight: 24,
+    paddingHorizontal: 0,
   },
   ctaButton: {
     backgroundColor: '#007AFF',
@@ -128,54 +145,20 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   featuresTitle: {
+    fontSize: 36,
     fontWeight: '700',
     color: '#1a1a1a',
     textAlign: 'center',
     marginBottom: 40,
   },
+  featuresTitleMobile: {
+    fontSize: 28,
+  },
   featuresGrid: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  featureCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    ...Platform.select({
-      web: {
-        transition: 'transform 0.2s, box-shadow 0.2s',
-      },
-    }),
-  },
-  featureIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#f0f4ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  featureIconText: {
-    fontSize: 32,
-  },
-  featureTitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 12,
-  },
-  featureDescription: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 24,
+  featuresGridMobile: {
+    flexDirection: 'column',
   },
 });

@@ -1,12 +1,10 @@
 import { Stack } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 
-// TODO: Add proper auth guard logic later
-// For now, just render the slot
-const isLoggedIn = true; // Placeholder - will be replaced with actual auth check
+const isUserLoggedIn = true;
 
 export default function ProtectedLayout() {
-  if (!isLoggedIn) {
+  if (!isUserLoggedIn) {
     return (
       <View style={styles.container}>
         <Text style={styles.text}>Please log in to access this section</Text>
