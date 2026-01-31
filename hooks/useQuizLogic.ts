@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Question } from '../types';
+import { logger } from '../lib/logger';
 
 interface UseQuizLogicProps {
   questions: Question[];
   onQuizComplete: (score: number, total: number) => void;
+  userInfo?: { id?: string | number; name?: string };
 }
 
-export function useQuizLogic({ questions, onQuizComplete }: UseQuizLogicProps) {
+export function useQuizLogic({ questions, onQuizComplete, userInfo }: UseQuizLogicProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
   const [score, setScore] = useState(0);
@@ -19,20 +21,54 @@ export function useQuizLogic({ questions, onQuizComplete }: UseQuizLogicProps) {
   const handleOptionSelect = (optionIndex: number) => {
     if (hasUserAnswered) return;
 
+    logger.userAction('Option Selected', userInfo, {
+      questionId: currentQuestion.id,
+      questionIndex: currentQuestionIndex,
+      selectedOption: optionIndex,
+      correctOption: currentQuestion.correctIndex,
+    });
+
     setSelectedOptionIndex(optionIndex);
     setHasUserAnswered(true);
 
-    if (optionIndex === currentQuestion.correctIndex) {
+    const isCorrect = optionIndex === currentQuestion.correctIndex;
+    if (isCorrect) {
       setScore((prev) => prev + 1);
+      logger.info('Correct Answer', {
+        questionId: currentQuestion.id,
+        newScore: score + 1,
+      });
+    } else {
+      logger.warn('Incorrect Answer', {
+        questionId: currentQuestion.id,
+        selected: optionIndex,
+        correct: currentQuestion.correctIndex,
+      });
     }
   };
 
   const handleNext = () => {
     if (!hasUserAnswered) return;
 
+    logger.userAction('Next Button Pressed', userInfo, {
+      currentQuestionIndex,
+      isLastQuestion,
+      currentScore: score,
+    });
+
     if (isLastQuestion) {
+      logger.group('Quiz Completed', () => {
+        logger.info('Final Score', { score, total: questions.length });
+        logger.info('Percentage', {
+          percentage: Math.round((score / questions.length) * 100),
+        });
+      });
       onQuizComplete(score, questions.length);
     } else {
+      logger.debug('Moving to Next Question', {
+        from: currentQuestionIndex,
+        to: currentQuestionIndex + 1,
+      });
       setCurrentQuestionIndex((prev) => prev + 1);
       setSelectedOptionIndex(null);
       setHasUserAnswered(false);

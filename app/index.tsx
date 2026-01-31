@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, useWind
 import { Link } from 'expo-router';
 
 import { FeatureCard } from '../components/FeatureCard';
+import { logger } from '../lib/logger';
 
 const CONTAINER_MAX_WIDTH = 800;
 const MOBILE_BREAKPOINT = 768;
@@ -21,7 +22,15 @@ export default function LandingPage() {
             Prepare smarter, practice endlessly, and ace your government exams with AI-powered questions and instant feedback.
           </Text>
           <Link href="/auth/login" asChild>
-            <TouchableOpacity style={styles.ctaButton}>
+            <TouchableOpacity
+              style={styles.ctaButton}
+              onPress={() => {
+                logger.userAction('Get Started Button Pressed', undefined, {
+                  screen: 'landing',
+                  action: 'navigate_to_login',
+                });
+              }}
+            >
               <Text style={styles.ctaButtonText}>Get Started</Text>
             </TouchableOpacity>
           </Link>

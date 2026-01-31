@@ -7,6 +7,7 @@ import { useQuizLogic } from '../../../hooks/useQuizLogic';
 import { QuizOption } from '../../../components/QuizOption';
 import { ProgressBar } from '../../../components/ProgressBar';
 import { DifficultyBadge } from '../../../components/DifficultyBadge';
+import { logger } from '../../../lib/logger';
 import mockQuestions from '../../../data/mockQuestions.json';
 import { Question } from '../../../types';
 
@@ -27,7 +28,13 @@ export default function QuizPage() {
   const questions: Question[] = mockQuestions as Question[];
   const { timer, formatTime } = useTimer(true);
 
+  const userInfo = {
+    id: id || 'unknown',
+    name: 'Quiz User',
+  };
+
   const handleQuizComplete = (score: number, total: number) => {
+    logger.userAction('Navigating to Results', userInfo, { score, total });
     router.push({
       pathname: '/(protected)/result',
       params: {
@@ -51,6 +58,7 @@ export default function QuizPage() {
   } = useQuizLogic({
     questions,
     onQuizComplete: handleQuizComplete,
+    userInfo,
   });
 
   return (
