@@ -1,0 +1,67 @@
+[
+  {
+    "id": 1,
+    "question": "What is the capital city of India?",
+    "options": [
+      "Mumbai",
+      "Delhi",
+      "Bangalore",
+      "Kolkata"
+    ],
+    "correctIndex": 1,
+    "difficulty": "easy",
+    "explanation": "Delhi is the capital city of India. It is also the seat of the Government of India and houses important institutions like the Parliament and Supreme Court."
+  },
+  {
+    "id": 2,
+    "question": "Which article of the Indian Constitution deals with the Right to Equality?",
+    "options": [
+      "Article 14",
+      "Article 15",
+      "Article 16",
+      "Article 19"
+    ],
+    "correctIndex": 0,
+    "difficulty": "medium",
+    "explanation": "Article 14 of the Indian Constitution guarantees the Right to Equality. It states that the State shall not deny to any person equality before the law or the equal protection of the laws within the territory of India."
+  },
+  {
+    "id": 3,
+    "question": "Who was the first Prime Minister of India?",
+    "options": [
+      "Sardar Vallabhbhai Patel",
+      "Jawaharlal Nehru",
+      "Dr. Rajendra Prasad",
+      "Mahatma Gandhi"
+    ],
+    "correctIndex": 1,
+    "difficulty": "easy",
+    "explanation": "Jawaharlal Nehru was the first Prime Minister of India, serving from 1947 to 1964. He played a crucial role in shaping modern India's foreign and domestic policies."
+  },
+  {
+    "id": 4,
+    "question": "What is the minimum age required to become the President of India?",
+    "options": [
+      "30 years",
+      "35 years",
+      "40 years",
+      "45 years"
+    ],
+    "correctIndex": 1,
+    "difficulty": "medium",
+    "explanation": "According to Article 58 of the Indian Constitution, a person must be at least 35 years old to be eligible for the office of the President of India."
+  },
+  {
+    "id": 5,
+    "question": "Which of the following is NOT a fundamental right under the Indian Constitution?",
+    "options": [
+      "Right to Equality",
+      "Right to Property",
+      "Right to Freedom",
+      "Right against Exploitation"
+    ],
+    "correctIndex": 1,
+    "difficulty": "hard",
+    "explanation": "Right to Property was originally a fundamental right under Article 31, but it was removed by the 44th Amendment Act, 1978. It is now a legal right under Article 300-A, not a fundamental right."
+  }
+]
