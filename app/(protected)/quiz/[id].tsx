@@ -25,7 +25,8 @@ export default function QuizPage() {
   const params = useLocalSearchParams<{ 
     id?: string; 
     topic?: string; 
-    difficulty?: 'easy' | 'medium' | 'hard' 
+    difficulty?: 'easy' | 'medium' | 'hard';
+    examType?: string;
   }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -38,11 +39,15 @@ export default function QuizPage() {
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { timer, formatTime } = useTimer(true);
-  const { user } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
 
-  // Get topic and difficulty from params, with defaults
+  // Get topic, difficulty, and examType from params, with defaults
   const topic = params.topic || 'General Knowledge';
   const difficulty = (params.difficulty || 'medium') as 'easy' | 'medium' | 'hard';
+  const examType = params.examType || undefined;
+  
+  // Get userFocus from profile's current_focus, fallback to examType from params, then default to 'General Knowledge'
+  const userFocus = profile?.current_focus || examType || 'General Knowledge';
 
   const userInfo = {
     id: params.id || 'unknown',
@@ -57,7 +62,8 @@ export default function QuizPage() {
       const response = await logger.apiCallAsync(
         'Generate Quiz',
         async () => {
-          return await generateQuiz(topic, difficulty);
+          // Pass current_focus from profile to generateQuiz
+          return await generateQuiz(topic, difficulty, userFocus);
         },
         {
           url: 'generate-quiz',
@@ -140,7 +146,7 @@ export default function QuizPage() {
 
   /**
    * Handles quiz submission when user completes the last question.
-   * Calculates score, saves to database, and navigates to result screen.
+   * Calculates score, saves to database, implements gamification (coins & streak), and navigates to result screen.
    */
   const handleFinish = async () => {
     // Validate required data
@@ -171,6 +177,7 @@ export default function QuizPage() {
       }
 
       const totalQuestions = questions.length;
+      const correctCount = score;
 
       // Capture userAnswers state: array of selected option indices (0-3) or null for unanswered
       // Example: [0, 2, null, 3] means: Q1=option A, Q2=option C, Q3=unanswered, Q4=option D
@@ -188,18 +195,97 @@ export default function QuizPage() {
       // DB column name: user_answers (snake_case)
       const userAnswersForDb = userAnswersArray.map(answer => answer === null ? -1 : answer);
 
-      // Insert row into quiz_attempts table with user_answers column
-      const { data: attemptData, error: insertError } = await supabase
-        .from('quiz_attempts')
-        .insert({
-          quiz_id: quizId,
-          user_id: user.id,
-          score: score,
-          total_questions: totalQuestions,
-          user_answers: userAnswersForDb, // Column name: user_answers (snake_case, matches DB schema)
-        })
-        .select('id')
+      // Fetch user profile to get last_active_date and current_streak for gamification
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('last_active_date, current_streak, coins')
+        .eq('id', user.id)
         .single();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        logger.error('Failed to fetch profile for gamification', profileError);
+        // Continue without gamification if profile fetch fails
+      }
+
+      // Calculate coins: 10 coins per correct answer
+      const totalEarned = correctCount * 10;
+
+      // Calculate streak based on last_active_date
+      let newStreak = 1;
+      if (profileData) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const lastActiveDate = profileData.last_active_date 
+          ? new Date(profileData.last_active_date)
+          : null;
+        
+        if (lastActiveDate) {
+          lastActiveDate.setHours(0, 0, 0, 0);
+          
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          
+          if (lastActiveDate.getTime() === today.getTime()) {
+            // Already played today: keep current streak
+            newStreak = profileData.current_streak || 0;
+          } else if (lastActiveDate.getTime() === yesterday.getTime()) {
+            // Played yesterday: increment streak
+            newStreak = (profileData.current_streak || 0) + 1;
+          } else {
+            // Missed a day: reset streak to 1
+            newStreak = 1;
+          }
+        } else {
+          // No last_active_date: first time playing, streak = 1
+          newStreak = 1;
+        }
+      }
+
+      const todayDateString = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+
+      // Update profiles table with coins, streak, and last_active_date
+      const profileUpdateData: {
+        coins?: number;
+        current_streak: number;
+        last_active_date: string;
+      } = {
+        current_streak: newStreak,
+        last_active_date: todayDateString,
+      };
+
+      // Increment coins if profile exists
+      if (profileData) {
+        profileUpdateData.coins = (profileData.coins || 0) + totalEarned;
+      } else {
+        // If profile doesn't exist, set initial coins
+        profileUpdateData.coins = totalEarned;
+      }
+
+      // Save quiz_attempts and update profiles in parallel
+      const [attemptResult, profileResult] = await Promise.all([
+        supabase
+          .from('quiz_attempts')
+          .insert({
+            quiz_id: quizId,
+            user_id: user.id,
+            score: score,
+            total_questions: totalQuestions,
+            user_answers: userAnswersForDb,
+          })
+          .select('id')
+          .single(),
+        supabase
+          .from('profiles')
+          .update(profileUpdateData)
+          .eq('id', user.id)
+          .select('id, coins, current_streak, last_active_date')
+          .single(),
+      ]);
+
+      const { data: attemptData, error: insertError } = attemptResult;
+      const { error: profileUpdateError } = profileResult;
 
       // Error handling: If insert fails, alert the error
       if (insertError) {
@@ -221,11 +307,29 @@ export default function QuizPage() {
         return;
       }
 
+      // Log profile update errors but don't block navigation
+      if (profileUpdateError) {
+        console.error('Error updating profile (gamification):', profileUpdateError);
+        logger.error('Failed to update profile gamification', profileUpdateError);
+      } else {
+        logger.info('Gamification updated', {
+          coinsEarned: totalEarned,
+          newStreak,
+          totalCoins: profileUpdateData.coins,
+        });
+        // Refresh profile in AuthContext to update UI with new coins and streak
+        refreshProfile().catch((err) => {
+          console.error('Error refreshing profile:', err);
+        });
+      }
+
       logger.userAction('Quiz Submitted', userInfo, {
         attemptId: attemptData.id,
         score,
         totalQuestions,
         quizId,
+        coinsEarned: totalEarned,
+        newStreak,
       });
 
       // Navigate to result screen with attemptId using query string format

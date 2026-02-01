@@ -10,6 +10,9 @@ interface Profile {
   updated_at: string | null;
   coins: number;
   current_streak: number;
+  last_active_date: string | null;
+  target_exams: string[] | null;
+  current_focus: string | null;
 }
 
 interface AuthContextType {
@@ -17,6 +20,7 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
+  refreshProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -36,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, avatar_url, updated_at, coins, current_streak')
+        .select('id, email, full_name, avatar_url, updated_at, coins, current_streak, last_active_date, target_exams, current_focus')
         .eq('id', userId)
         .single();
 
@@ -56,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const { data: newProfile, error: insertError } = await supabase
             .from('profiles')
             .insert(profileData)
-            .select('id, email, full_name, avatar_url, updated_at, coins, current_streak')
+            .select('id, email, full_name, avatar_url, updated_at, coins, current_streak, last_active_date, target_exams, current_focus')
             .single();
 
           if (insertError) {
@@ -75,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .from('profiles')
             .update({ email: userEmail })
             .eq('id', userId)
-            .select('id, email, full_name, avatar_url, updated_at, coins, current_streak')
+            .select('id, email, full_name, avatar_url, updated_at, coins, current_streak, last_active_date, target_exams, current_focus')
             .single();
           
           if (!updateError && updatedProfile) {
@@ -159,6 +164,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const refreshProfile = async () => {
+    if (session?.user) {
+      await fetchProfile(session.user.id, session.user.email);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -166,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         profile,
         loading,
+        refreshProfile,
       }}
     >
       {children}

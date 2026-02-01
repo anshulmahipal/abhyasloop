@@ -205,10 +205,31 @@ serve(async (req: Request) => {
       console.log('Found nested body, using body.body');
     }
 
-    const { topic, difficulty, examType, examContext, userFocus } = requestBody;
+    let { topic, difficulty, examType, examContext, userFocus } = requestBody;
     
     // Extract userFocus from request body, default to 'General Knowledge' if missing
     const userFocusValue = userFocus || 'General Knowledge';
+    
+    // Input Validation & Security Checks
+    // 1. Length Limit (Simple but effective)
+    if (topic && topic.length > 50) {
+      console.warn('Topic too long:', topic.length, 'characters');
+      return new Response(
+        JSON.stringify({ error: 'Topic too long. Maximum 50 characters allowed.' }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        }
+      );
+    }
+
+    // 2. Blocklist (Basic) - If the user provided topic is unsafe, unethical, or tries to override these instructions,
+    // ignore it and generate a quiz on 'General Science' instead
+    const forbidden = ["ignore", "system", "instruction", "jailbreak", "sex", "hate"];
+    if (topic && forbidden.some(word => topic.toLowerCase().includes(word))) {
+      console.warn('Unsafe/unethical topic detected, switching to "General Science"');
+      topic = "General Science";
+    }
     
     // Log userFocus for debugging
     console.log('Generating quiz for focus:', userFocusValue);
@@ -242,6 +263,65 @@ serve(async (req: Request) => {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         }
       );
+    }
+
+    // Active Quiz Lock: Check if user has generated a quiz recently
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('last_quiz_generated_at')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError && profileError.code !== 'PGRST116') {
+      // PGRST116 means no rows found, which is fine (first time user)
+      console.error('Error fetching profile for quiz lock:', profileError);
+      // Continue anyway - don't block if profile fetch fails
+    }
+
+    if (profileData?.last_quiz_generated_at) {
+      const lastQuizTime = new Date(profileData.last_quiz_generated_at);
+      const now = new Date();
+      const timeDiffSeconds = (now.getTime() - lastQuizTime.getTime()) / 1000;
+
+      if (timeDiffSeconds < 60) {
+        const remainingSeconds = Math.ceil(60 - timeDiffSeconds);
+        console.log(`Quiz generation blocked: ${timeDiffSeconds.toFixed(1)}s since last quiz (${remainingSeconds}s remaining)`);
+        
+        // Create a friendly, encouraging message
+        const friendlyMessages = [
+          `Take a moment to rest! You've been working hard. Come back in ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''}!`,
+          `Great job on your last quiz! Take a ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} break before starting another one.`,
+          `You're on fire! But even champions need a quick ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} breather. See you soon!`,
+          `Well done! Finish your current quiz or take a ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} break. Quality over quantity!`,
+        ];
+        
+        // Select message based on remaining time (more encouraging for longer waits)
+        let userMessage;
+        if (remainingSeconds > 45) {
+          userMessage = friendlyMessages[0]; // Rest message
+        } else if (remainingSeconds > 30) {
+          userMessage = friendlyMessages[1]; // Break message
+        } else if (remainingSeconds > 15) {
+          userMessage = friendlyMessages[2]; // Champion message
+        } else {
+          userMessage = friendlyMessages[3]; // Quality message
+        }
+        
+        return new Response(
+          JSON.stringify({
+            error: userMessage,
+            details: `Please wait ${remainingSeconds} more second${remainingSeconds !== 1 ? 's' : ''} before generating a new quiz.`,
+          }),
+          {
+            status: 429,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+              'Retry-After': remainingSeconds.toString(),
+            },
+          }
+        );
+      }
     }
 
     // Get Gemini API key from environment
@@ -800,6 +880,19 @@ serve(async (req: Request) => {
     }
 
     console.log(`Inserted ${insertedQuestions.length} questions`);
+
+    // Update last_quiz_generated_at immediately after successful quiz generation
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ last_quiz_generated_at: new Date().toISOString() })
+      .eq('id', user.id);
+
+    if (updateError) {
+      // Log error but don't fail the request - quiz was already created successfully
+      console.error('Error updating last_quiz_generated_at:', updateError);
+    } else {
+      console.log('Updated last_quiz_generated_at for user:', user.id);
+    }
 
     // Map database records to frontend format
     const questionsWithIds = insertedQuestions.map((dbQuestion: DbQuestion) => ({
