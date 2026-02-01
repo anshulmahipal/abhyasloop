@@ -3,9 +3,13 @@ import { Link } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function DashboardPage() {
-  const { profile, loading } = useAuth();
+  const { profile, loading, user } = useAuth();
 
-  if (loading) {
+  console.log('Dashboard render:', { loading, hasUser: !!user, hasProfile: !!profile });
+
+  // Show loading only for a short time, then show content even if profile is loading
+  if (loading && !user) {
+    console.log('Dashboard: Showing loading screen');
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" />
@@ -13,7 +17,8 @@ export default function DashboardPage() {
     );
   }
 
-  const displayName = profile?.full_name || profile?.email?.split('@')[0] || 'User';
+  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'User';
+  console.log('Dashboard: Rendering content, displayName:', displayName);
 
   return (
     <View style={styles.container}>

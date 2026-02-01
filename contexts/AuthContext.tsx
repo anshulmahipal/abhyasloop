@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   // Fetch profile data when user is authenticated
-  const fetchProfile = async (userId: string, userEmail?: string) => {
+  const fetchProfile = async (userId: string, userEmail?: string): Promise<void> => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -94,31 +94,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let mounted = true;
+
+    // Set a timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth loading timeout - setting loading to false');
+        setLoading(false);
+      }
+    }, 10000); // 10 second timeout
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      clearTimeout(loadingTimeout);
       setSession(session);
       if (session?.user) {
-        fetchProfile(session.user.id, session.user.email);
+        fetchProfile(session.user.id, session.user.email).finally(() => {
+          if (mounted) setLoading(false);
+        });
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
+    }).catch((error) => {
+      console.error('Error getting session:', error);
+      clearTimeout(loadingTimeout);
+      if (mounted) {
+        setLoading(false);
+      }
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+      clearTimeout(loadingTimeout);
       setSession(session);
       if (session?.user) {
         await fetchProfile(session.user.id, session.user.email);
       } else {
         setProfile(null);
       }
-      setLoading(false);
+      if (mounted) setLoading(false);
     });
 
     return () => {
+      mounted = false;
+      clearTimeout(loadingTimeout);
       subscription.unsubscribe();
     };
   }, []);

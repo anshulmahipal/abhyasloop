@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { SessionProvider, useSession } from '../contexts/SessionContext';
+import { AuthProvider } from '../contexts/AuthContext';
 
 function RootLayoutNav() {
   const { session, loading } = useSession();
@@ -66,7 +67,9 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <SessionProvider>
-      <RootLayoutNav />
+      <AuthProvider>
+        <RootLayoutNav />
+      </AuthProvider>
     </SessionProvider>
   );
 }
