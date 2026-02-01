@@ -15,6 +15,9 @@ const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-flash-latest';
 interface RequestBody {
   topic: string;
   difficulty: 'easy' | 'medium' | 'hard';
+  examType?: string | null;
+  examContext?: string | null;
+  userFocus?: string | null;
 }
 
 interface Question {
@@ -45,16 +48,19 @@ interface GeminiResponse {
   }>;
 }
 
-const SYSTEM_PROMPT = `You are a quiz generator for government exam preparation. Generate exactly 5 multiple-choice questions in JSON format.
+const SYSTEM_PROMPT_TEMPLATE = (userFocus: string, topic: string, difficulty: string, contextRules: string, focusInstructions: string) => `You are an expert exam setter for ${userFocus}. Generate exactly 5 multiple-choice questions on ${topic}. Difficulty: ${difficulty}.
+${focusInstructions ? `\n${focusInstructions}\n` : ''}
+Context Rules:
 
-Requirements:
-- Topic: {TOPIC}
-- Difficulty: {DIFFICULTY}
+${contextRules}
+
+Technical Requirements:
 - Each question must have exactly 4 options
 - Return ONLY valid JSON, no markdown, no code blocks
 - Use plain text for math expressions (e.g., "2x + 3y = 12" instead of LaTeX "$2x + 3y = 12$")
 - Avoid special characters that require escaping in JSON strings
 - All text must be properly escaped for JSON (use \\n for newlines, \\" for quotes)
+- Strictly follow the question pattern, difficulty, and syllabus of ${userFocus}
 
 JSON Format:
 {
@@ -199,15 +205,22 @@ serve(async (req: Request) => {
       console.log('Found nested body, using body.body');
     }
 
-    const { topic, difficulty } = requestBody;
-    console.log('Extracted values:', { topic, difficulty });
+    const { topic, difficulty, examType, examContext, userFocus } = requestBody;
+    
+    // Extract userFocus from request body, default to 'General Knowledge' if missing
+    const userFocusValue = userFocus || 'General Knowledge';
+    
+    // Log userFocus for debugging
+    console.log('Generating quiz for focus:', userFocusValue);
+    
+    console.log('Extracted values:', { topic, difficulty, examType, examContext, userFocus: userFocusValue });
 
     if (!topic || !difficulty) {
-      console.error('Missing required fields:', { topic, difficulty, fullBody: body, requestBody });
+      console.error('Missing required fields:', { topic, difficulty, examType, examContext, userFocus: userFocusValue, fullBody: body, requestBody });
       return new Response(
         JSON.stringify({ 
           error: 'Missing topic or difficulty', 
-          received: { topic, difficulty },
+          received: { topic, difficulty, examType, examContext, userFocus: userFocusValue },
           bodyType: typeof body,
           bodyKeys: body ? Object.keys(body) : 'body is null/undefined',
           requestBodyKeys: requestBody ? Object.keys(requestBody) : 'requestBody is null/undefined',
@@ -247,10 +260,45 @@ serve(async (req: Request) => {
       );
     }
 
-    // Build the prompt with topic and difficulty
-    const prompt = SYSTEM_PROMPT
-      .replace('{TOPIC}', topic)
-      .replace('{DIFFICULTY}', normalizedDifficulty);
+    // Determine focus instructions based on userFocus
+    const getFocusInstructions = (focus: string): string => {
+      const focusUpper = focus.toUpperCase();
+      let instructions = '';
+      
+      if (focusUpper.includes('SSC')) {
+        instructions = 'Focus on Geometry, Trigonometry, and Algebra tricks.';
+      } else if (focusUpper.includes('BANKING') || focusUpper.includes('BANK')) {
+        instructions = 'Focus on Calculation speed, Data Interpretation, and Arithmetic.';
+      }
+      
+      return instructions;
+    };
+    
+    // Determine context rules based on userFocus
+    const getContextRules = (focus: string): string => {
+      const focusUpper = focus.toUpperCase();
+      
+      if (focusUpper.includes('SSC')) {
+        return `If Focus is SSC: Emphasize Geometry/Trigonometry/Algebra. Questions should focus on geometric concepts, trigonometric identities and applications, algebraic manipulations, and mathematical problem-solving techniques specific to SSC exams.`;
+      }
+      
+      if (focusUpper.includes('BANKING') || focusUpper.includes('BANK')) {
+        return `If Focus is Banking: Emphasize Arithmetic/Data Interpretation/Simplification. Questions should focus on quick arithmetic calculations, data interpretation from tables and charts, simplification techniques, and numerical problem-solving relevant to banking exams.`;
+      }
+      
+      if (focusUpper.includes('UPSC')) {
+        return `If Focus is UPSC: Emphasize Statement-based questions. Questions should be statement-based, testing analytical reasoning, logical deduction, and comprehensive understanding of concepts. Focus on questions that require careful reading and analysis of statements.`;
+      }
+      
+      // Default context rules for General Knowledge or other focuses
+      return `Focus on comprehensive understanding of the topic, balanced difficulty, and practical application of concepts. Ensure questions are clear, well-structured, and test fundamental knowledge.`;
+    };
+    
+    const focusInstructions = getFocusInstructions(userFocusValue);
+    const contextRules = getContextRules(userFocusValue);
+    
+    // Build the prompt dynamically using the template function
+    const prompt = SYSTEM_PROMPT_TEMPLATE(userFocusValue, topic, normalizedDifficulty, contextRules, focusInstructions);
     
     console.log('Prompt length:', prompt.length);
     console.log('Prompt preview:', prompt.substring(0, 200));
@@ -411,6 +459,50 @@ serve(async (req: Request) => {
       jsonText = jsonText.replace(/^```\n?/, '').replace(/\n?```$/, '');
     }
 
+    // Clean JSON string: escape bad control characters
+    const cleanJsonString = (jsonStr: string): string => {
+      let cleaned = jsonStr;
+      let result = '';
+      let i = 0;
+      
+      // Process character by character to avoid breaking escape sequences
+      while (i < cleaned.length) {
+        const char = cleaned[i];
+        const code = char.charCodeAt(0);
+        
+        // If it's a backslash, check if it's part of an escape sequence
+        if (char === '\\' && i + 1 < cleaned.length) {
+          const nextChar = cleaned[i + 1];
+          // Valid escape sequences: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+          if ('"\\/bfnrtu'.includes(nextChar)) {
+            // Keep the escape sequence as-is
+            result += char + nextChar;
+            i += 2;
+            continue;
+          }
+        }
+        
+        // Handle control characters (0x00-0x1F)
+        if (code >= 0x00 && code <= 0x1F) {
+          switch (code) {
+            case 0x08: result += '\\b'; break; // backspace
+            case 0x09: result += '\\t'; break; // tab
+            case 0x0A: result += '\\n'; break; // newline
+            case 0x0C: result += '\\f'; break; // form feed
+            case 0x0D: result += '\\r'; break; // carriage return
+            default:
+              // For other control chars, replace with space
+              result += ' ';
+          }
+        } else {
+          result += char;
+        }
+        i++;
+      }
+      
+      return result;
+    };
+
     let parsedResponse;
     try {
       parsedResponse = JSON.parse(jsonText);
@@ -428,19 +520,86 @@ serve(async (req: Request) => {
         const end = Math.min(jsonText.length, errorPosition + 100);
         console.error(`Error around position ${errorPosition}:`, jsonText.substring(start, end));
         console.error('Character at error position:', jsonText[errorPosition]);
+        console.error('Character code:', jsonText.charCodeAt(errorPosition));
       } else {
         console.error('Response text (first 1000 chars):', jsonText.substring(0, 1000));
         console.error('Response text (last 200 chars):', jsonText.substring(Math.max(0, jsonText.length - 200)));
       }
       
+      // Try to fix incomplete JSON (Unexpected end of JSON input)
+      if (errorMessage.includes('Unexpected end of JSON input') || errorMessage.includes('end of JSON')) {
+        try {
+          console.log('Attempting to fix incomplete JSON...');
+          let fixedJson = jsonText.trim();
+          
+          // Count braces and brackets to see what's missing
+          const openBraces = (fixedJson.match(/\{/g) || []).length;
+          const closeBraces = (fixedJson.match(/\}/g) || []).length;
+          const openBrackets = (fixedJson.match(/\[/g) || []).length;
+          const closeBrackets = (fixedJson.match(/\]/g) || []).length;
+          
+          // Remove trailing commas before closing structures
+          fixedJson = fixedJson.replace(/,\s*$/, '');
+          
+          // Check if we're in the middle of a string (simplified check)
+          // Look for unclosed strings by checking if last quote is escaped
+          let quoteCount = 0;
+          let escaped = false;
+          for (let i = 0; i < fixedJson.length; i++) {
+            if (fixedJson[i] === '\\' && !escaped) {
+              escaped = true;
+              continue;
+            }
+            if (fixedJson[i] === '"' && !escaped) {
+              quoteCount++;
+            }
+            escaped = false;
+          }
+          
+          // If odd number of quotes, close the string
+          if (quoteCount % 2 !== 0) {
+            fixedJson += '"';
+            console.log('Closed unclosed string');
+          }
+          
+          // Close arrays (most nested first)
+          for (let i = 0; i < openBrackets - closeBrackets; i++) {
+            fixedJson += ']';
+          }
+          
+          // Close objects (most nested first)
+          for (let i = 0; i < openBraces - closeBraces; i++) {
+            fixedJson += '}';
+          }
+          
+          console.log(`Fixed JSON: added ${openBrackets - closeBrackets} closing brackets, ${openBraces - closeBraces} closing braces`);
+          parsedResponse = JSON.parse(fixedJson);
+          console.log('Successfully fixed incomplete JSON');
+        } catch (fixError) {
+          console.error('Failed to fix incomplete JSON:', fixError);
+          // Log the original JSON for debugging
+          console.error('Original JSON preview (last 200 chars):', jsonText.substring(Math.max(0, jsonText.length - 200)));
+        }
+      }
+      
+      // Try to fix control character issues
+      if (!parsedResponse && (errorMessage.includes('Bad control character') || errorMessage.includes('control character'))) {
+        try {
+          console.log('Attempting to clean JSON string of control characters...');
+          const cleanedJsonText = cleanJsonString(jsonText);
+          parsedResponse = JSON.parse(cleanedJsonText);
+          console.log('Successfully fixed JSON control character issues');
+        } catch (fixError) {
+          console.error('Failed to fix JSON control characters:', fixError);
+        }
+      }
+      
       // Try to fix common escape issues
-      if (errorMessage.includes('Bad escaped character')) {
+      if (!parsedResponse && errorMessage.includes('Bad escaped character')) {
         // Try fixing unescaped backslashes before certain characters
-        // This is a heuristic - escape backslashes that aren't part of valid escape sequences
         let fixedJson = jsonText;
         try {
           // Replace unescaped backslashes before non-escape characters
-          // But be careful not to break valid escapes like \n, \t, etc.
           fixedJson = jsonText.replace(/\\(?!["\\/bfnrtu])/g, '\\\\');
           parsedResponse = JSON.parse(fixedJson);
           console.log('Successfully fixed JSON escape issues');
@@ -458,20 +617,24 @@ serve(async (req: Request) => {
         const closeBrackets = (jsonText.match(/\]/g) || []).length;
         
         const isIncomplete = openBraces !== closeBraces || openBrackets !== closeBrackets;
+        const isEndOfInputError = errorMessage.includes('Unexpected end of JSON input') || errorMessage.includes('end of JSON');
         
         return new Response(
           JSON.stringify({ 
             error: 'Failed to parse AI response',
-            details: isIncomplete 
-              ? 'Response appears to be truncated or incomplete JSON. The AI may have hit token limits.'
+            details: isEndOfInputError || isIncomplete
+              ? 'Response appears to be truncated or incomplete JSON. The AI may have hit token limits. Try reducing the number of questions or simplifying the topic.'
               : errorMessage.includes('Bad escaped character')
               ? 'JSON contains invalid escape sequences. This may be due to LaTeX math expressions in the content.'
+              : errorMessage.includes('Bad control character')
+              ? 'JSON contains invalid control characters. This may be due to special characters in the content.'
               : 'Invalid JSON format received',
             parseError: errorMessage,
             jsonLength: jsonText.length,
             errorPosition: errorPosition,
             braceMismatch: openBraces !== closeBraces,
             bracketMismatch: openBrackets !== closeBrackets,
+            isIncomplete: isIncomplete || isEndOfInputError,
           }),
           {
             status: 500,
