@@ -64,7 +64,7 @@ JSON Format:
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 0,
       "difficulty": "easy|medium|hard",
-      "explanation": "Detailed explanation of why the correct answer is correct"
+      "explanation": "A short, clear reason why the correct answer is right, written in Hinglish (mix of Hindi and English). Example: 'Yeh answer sahi hai kyunki Article 14 equality guarantee karta hai.'"
     }
   ]
 }
@@ -72,7 +72,9 @@ JSON Format:
 Important:
 - correctIndex must be 0, 1, 2, or 3 (matching the options array index)
 - All questions must match the requested difficulty level
-- Explanations should be educational and help users learn
+- explanation is REQUIRED for every question and MUST be written in Hinglish (mix of Hindi and English words)
+- Hinglish means: Use Hindi words naturally mixed with English, like "Yeh concept important hai", "Iska reason yeh hai ki", "Article 14 equality provide karta hai"
+- Explanations should be concise (1-2 sentences), clear, and help users understand why the correct answer is right
 - Return ONLY the JSON object, nothing else
 - Use plain text math notation, avoid LaTeX syntax with dollar signs`;
 
@@ -539,6 +541,22 @@ serve(async (req: Request) => {
           JSON.stringify({ 
             error: `Invalid correctIndex at question ${i}`,
             details: 'correctIndex must be 0, 1, 2, or 3',
+          }),
+          {
+            status: 500,
+            headers: { 
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
+          }
+        );
+      }
+      if (!q.explanation || typeof q.explanation !== 'string' || q.explanation.trim() === '') {
+        console.error(`Missing or invalid explanation at question ${i}:`, q);
+        return new Response(
+          JSON.stringify({ 
+            error: `Missing explanation at question ${i}`,
+            details: 'Each question must have a non-empty explanation field',
           }),
           {
             status: 500,

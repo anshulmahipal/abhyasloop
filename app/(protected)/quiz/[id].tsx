@@ -113,6 +113,8 @@ export default function QuizPage() {
 
       setQuestions(mappedQuestions);
       setQuizId(response.quizId);
+      // Initialize userAnswers array: one slot per question, all null (unanswered)
+      // This array will track user's selected option indices (0-3) as they answer questions
       setUserAnswers(new Array(mappedQuestions.length).fill(null));
       console.log('Questions state set, count:', mappedQuestions.length);
       logger.info('Quiz loaded successfully', { 
@@ -136,34 +138,57 @@ export default function QuizPage() {
     fetchQuiz();
   }, [topic, difficulty]);
 
-  const handleQuizSubmit = async () => {
-    if (!quizId || !user) {
-      Alert.alert('Error', 'Unable to submit quiz. Please try again.');
-      logger.error('Quiz submission failed: missing quizId or user', { quizId, userId: user?.id });
+  /**
+   * Handles quiz submission when user completes the last question.
+   * Calculates score, saves to database, and navigates to result screen.
+   */
+  const handleFinish = async () => {
+    // Validate required data
+    if (!quizId) {
+      Alert.alert('Error', 'Quiz ID is missing. Please try again.');
+      logger.error('Quiz submission failed: missing quizId', { quizId });
+      return;
+    }
+
+    if (!user) {
+      Alert.alert('Error', 'User authentication required. Please sign in again.');
+      logger.error('Quiz submission failed: missing user', {});
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Calculate score by comparing userAnswers with correct answers
+      // Calculate score by comparing user's selected index with correct_index
       let score = 0;
       for (let i = 0; i < questions.length; i++) {
-        if (userAnswers[i] !== null && userAnswers[i] === questions[i].correctIndex) {
+        const userSelectedIndex = userAnswers[i];
+        const correctIndex = questions[i].correctIndex;
+        
+        if (userSelectedIndex !== null && userSelectedIndex === correctIndex) {
           score++;
         }
       }
 
       const totalQuestions = questions.length;
 
+      // Capture userAnswers state: array of selected option indices (0-3) or null for unanswered
+      // Example: [0, 2, null, 3] means: Q1=option A, Q2=option C, Q3=unanswered, Q4=option D
+      const userAnswersArray = userAnswers;
+
       logger.info('Calculating quiz score', {
         score,
         totalQuestions,
-        userAnswers,
+        userAnswers: userAnswersArray,
         quizId,
       });
 
-      // Save to quiz_attempts table
+      // Convert userAnswers (JS camelCase) to user_answers (DB snake_case) format
+      // Replace null values with -1 to represent unanswered questions in JSONB array
+      // DB column name: user_answers (snake_case)
+      const userAnswersForDb = userAnswersArray.map(answer => answer === null ? -1 : answer);
+
+      // Insert row into quiz_attempts table with user_answers column
       const { data: attemptData, error: insertError } = await supabase
         .from('quiz_attempts')
         .insert({
@@ -171,13 +196,26 @@ export default function QuizPage() {
           user_id: user.id,
           score: score,
           total_questions: totalQuestions,
+          user_answers: userAnswersForDb, // Column name: user_answers (snake_case, matches DB schema)
         })
         .select('id')
         .single();
 
-      if (insertError || !attemptData) {
+      // Error handling: If insert fails, alert the error
+      if (insertError) {
         console.error('Error saving quiz attempt:', insertError);
         logger.error('Failed to save quiz attempt', insertError);
+        Alert.alert(
+          'Error',
+          insertError.message || 'Failed to save your quiz results. Please try again.'
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!attemptData || !attemptData.id) {
+        console.error('No attempt data returned from insert');
+        logger.error('Failed to save quiz attempt: no data returned');
         Alert.alert('Error', 'Failed to save your quiz results. Please try again.');
         setIsSubmitting(false);
         return;
@@ -190,16 +228,12 @@ export default function QuizPage() {
         quizId,
       });
 
-      // Navigate to result screen with attemptId
-      router.replace({
-        pathname: '/(protected)/result',
-        params: {
-          attemptId: attemptData.id,
-        },
-      });
+      // Navigate to result screen with attemptId using query string format
+      router.replace(`/(protected)/result?attemptId=${attemptData.id}`);
     } catch (err) {
       logger.error('Quiz submission error', err);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred.';
+      Alert.alert('Error', errorMessage);
       setIsSubmitting(false);
     }
   };
@@ -236,24 +270,33 @@ export default function QuizPage() {
     userInfo,
   });
 
-  // Override handleOptionSelect to track answers in userAnswers array
+  /**
+   * Tracks user's selected option index for every question.
+   * Updates the userAnswers state array when user selects an option.
+   * This data will be saved to the database as user_answers column when quiz is submitted.
+   */
   const handleOptionSelect = (optionIndex: number) => {
     originalHandleOptionSelect(optionIndex);
-    // Update userAnswers array with the selected answer for current question
+    
+    // Capture the selected option index (0-3) for the current question
+    // Store in userAnswers array which will be saved to DB as user_answers column
     const newAnswers = [...userAnswers];
     newAnswers[currentQuestionIndex] = optionIndex;
     setUserAnswers(newAnswers);
   };
 
-  // Override handleNext to handle submission on last question
+  /**
+   * Handles navigation to next question or quiz submission.
+   * Triggers handleFinish when user completes the last question.
+   */
   const handleNext = () => {
     if (!hasUserAnswered) return;
 
     if (isLastQuestion) {
-      // On last question, submit the quiz
-      handleQuizSubmit();
+      // Trigger submission logic when completing last question
+      handleFinish();
     } else {
-      // Otherwise, proceed to next question
+      // Proceed to next question
       originalHandleNext();
     }
   };
@@ -355,7 +398,10 @@ export default function QuizPage() {
           disabled={!hasUserAnswered || isSubmitting}
         >
           {isSubmitting ? (
-            <ActivityIndicator color="#ffffff" />
+            <View style={styles.submittingContainer}>
+              <ActivityIndicator color="#ffffff" />
+              <Text style={styles.submittingText}>Saving results...</Text>
+            </View>
           ) : (
             <Text style={styles.nextButtonText}>
               {isLastQuestion ? 'Finish Quiz' : 'Next Question'}
@@ -465,6 +511,16 @@ const styles = StyleSheet.create({
   nextButtonText: {
     color: '#ffffff',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  submittingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  submittingText: {
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: '600',
   },
   centerContent: {

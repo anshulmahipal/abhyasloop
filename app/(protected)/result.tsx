@@ -1,35 +1,30 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, useWindowDimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { CircularProgress } from '../../components/CircularProgress';
-import { DifficultyBadge } from '../../components/DifficultyBadge';
 import { logger } from '../../lib/logger';
 
-interface QuizAttempt {
+interface QuizAttemptWithQuiz {
   id: string;
   quiz_id: string;
   user_id: string;
   score: number;
   total_questions: number;
   completed_at: string;
-}
-
-interface GeneratedQuiz {
-  id: string;
-  topic: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  created_at: string;
+  generated_quizzes: {
+    topic: string;
+    difficulty: 'easy' | 'medium' | 'hard';
+  } | null;
 }
 
 export default function ResultPage() {
+  // Read attemptId from search parameters (query params)
   const params = useLocalSearchParams<{ attemptId?: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
-  const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
-  const [quiz, setQuiz] = useState<GeneratedQuiz | null>(null);
+  const [attemptData, setAttemptData] = useState<QuizAttemptWithQuiz | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,40 +40,31 @@ export default function ResultPage() {
         setIsLoading(true);
         setError(null);
 
-        // Fetch quiz attempt
-        const { data: attemptData, error: attemptError } = await supabase
+        // Fetch quiz_attempts row by ID and join generated_quizzes to get topic and difficulty
+        const { data, error: fetchError } = await supabase
           .from('quiz_attempts')
-          .select('*')
+          .select(`
+            *,
+            generated_quizzes (
+              topic,
+              difficulty
+            )
+          `)
           .eq('id', params.attemptId)
           .single();
 
-        if (attemptError || !attemptData) {
-          console.error('Error fetching quiz attempt:', attemptError);
-          logger.error('Failed to fetch quiz attempt', attemptError);
+        if (fetchError || !data) {
+          console.error('Error fetching quiz attempt:', fetchError);
+          logger.error('Failed to fetch quiz attempt', fetchError);
           throw new Error('Failed to load quiz results');
         }
 
-        setAttempt(attemptData as QuizAttempt);
-
-        // Fetch related quiz data
-        const { data: quizData, error: quizError } = await supabase
-          .from('generated_quizzes')
-          .select('*')
-          .eq('id', attemptData.quiz_id)
-          .single();
-
-        if (quizError || !quizData) {
-          console.error('Error fetching quiz data:', quizError);
-          logger.error('Failed to fetch quiz data', quizError);
-          // Don't throw - we can still show the score without quiz details
-        } else {
-          setQuiz(quizData as GeneratedQuiz);
-        }
+        setAttemptData(data as QuizAttemptWithQuiz);
 
         logger.info('Result data loaded', {
           attemptId: params.attemptId,
-          score: attemptData.score,
-          totalQuestions: attemptData.total_questions,
+          score: data.score,
+          totalQuestions: data.total_questions,
         });
       } catch (err) {
         logger.error('Failed to load result data', err);
@@ -99,6 +85,11 @@ export default function ResultPage() {
     router.replace('/(protected)/dashboard');
   };
 
+  const handleTryAnotherQuiz = () => {
+    logger.userAction('Try Another Quiz', {}, {});
+    router.replace('/(protected)/quiz/config');
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -108,7 +99,7 @@ export default function ResultPage() {
     );
   }
 
-  if (error || !attempt) {
+  if (error || !attemptData) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <Text style={styles.errorText}>⚠️ {error || 'Failed to load results'}</Text>
@@ -122,67 +113,82 @@ export default function ResultPage() {
     );
   }
 
-  const percentage = (attempt.score / attempt.total_questions) * 100;
-  const showCircularProgress = quiz?.difficulty === 'easy';
+  const percentage = (attemptData.score / attemptData.total_questions) * 100;
+  
+  // Determine message based on percentage
+  let message = '';
+  if (percentage > 80) {
+    message = 'Excellent work!';
+  } else if (percentage < 50) {
+    message = 'Keep practicing!';
+  }
 
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
       <View style={[styles.container, isMobile ? styles.containerMobile : styles.containerDesktop]}>
+        {/* Header */}
+        <Text style={styles.header}>Quiz Completed!</Text>
+
         {/* Score Card */}
         <View style={styles.scoreCard}>
-          <Text style={styles.scoreTitle}>Quiz Complete!</Text>
-          <Text style={styles.scoreText}>
-            You scored {attempt.score} out of {attempt.total_questions}
+          {/* Big, bold display of score / total_questions */}
+          <Text style={styles.scoreDisplay}>
+            {attemptData.score} / {attemptData.total_questions}
           </Text>
           
-          {/* Circular progress for easy difficulty, text for others */}
-          {showCircularProgress ? (
-            <View style={styles.progressContainer}>
-              <CircularProgress
-                percentage={percentage}
-                size={180}
-                strokeWidth={18}
-                color="#007AFF"
-                backgroundColor="#e0e0e0"
-              />
-            </View>
-          ) : (
-            <View style={styles.percentageContainer}>
-              <Text style={styles.percentageText}>{Math.round(percentage)}%</Text>
-            </View>
+          {/* Percentage */}
+          <Text style={styles.percentage}>{Math.round(percentage)}%</Text>
+
+          {/* Message */}
+          {message && (
+            <Text style={styles.message}>{message}</Text>
           )}
         </View>
 
         {/* Quiz Details */}
-        {quiz && (
+        {attemptData.generated_quizzes && (
           <View style={styles.detailsCard}>
             <Text style={styles.detailsTitle}>Quiz Details</Text>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Topic:</Text>
-              <Text style={styles.detailValue}>{quiz.topic}</Text>
+              <Text style={styles.detailValue}>{attemptData.generated_quizzes.topic}</Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Difficulty:</Text>
-              <View style={styles.badgeContainer}>
-                <DifficultyBadge difficulty={quiz.difficulty} />
-              </View>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Completed:</Text>
               <Text style={styles.detailValue}>
-                {new Date(attempt.completed_at).toLocaleDateString()}
+                {attemptData.generated_quizzes.difficulty.charAt(0).toUpperCase() + 
+                 attemptData.generated_quizzes.difficulty.slice(1)}
               </Text>
             </View>
           </View>
         )}
 
-        {/* Back to Dashboard Button */}
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleBackToDashboard}
-        >
-          <Text style={styles.buttonText}>Back to Dashboard</Text>
-        </TouchableOpacity>
+        {/* Actions */}
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity
+            style={[styles.button, styles.buttonSecondary]}
+            onPress={handleBackToDashboard}
+          >
+            <Text style={styles.buttonSecondaryText}>Back to Dashboard</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => {
+              logger.userAction('Review Answers', {}, {});
+              router.push(`/(protected)/quiz/review/${params.attemptId}`);
+            }}
+          >
+            <Text style={styles.buttonText}>Review Answers</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleTryAnotherQuiz}
+          >
+            <Text style={styles.buttonText}>Try Another Quiz</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </ScrollView>
   );
@@ -214,10 +220,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 400,
   },
+  header: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
   scoreCard: {
     backgroundColor: '#ffffff',
     borderRadius: 20,
-    padding: 32,
+    padding: 40,
     alignItems: 'center',
     marginBottom: 24,
     shadowColor: '#000',
@@ -229,30 +242,24 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  scoreTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  scoreText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  progressContainer: {
-    marginVertical: 20,
-  },
-  percentageContainer: {
-    marginVertical: 20,
-  },
-  percentageText: {
-    fontSize: 64,
+  scoreDisplay: {
+    fontSize: 72,
     fontWeight: '700',
     color: '#007AFF',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  percentage: {
+    fontSize: 48,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  message: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#4CAF50',
     textAlign: 'center',
   },
   detailsCard: {
@@ -292,8 +299,8 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     flex: 1,
   },
-  badgeContainer: {
-    flex: 1,
+  actionsContainer: {
+    gap: 16,
   },
   button: {
     backgroundColor: '#007AFF',
@@ -312,6 +319,18 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  buttonSecondary: {
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+  },
+  buttonSecondaryText: {
+    color: '#007AFF',
     fontSize: 18,
     fontWeight: '600',
   },
