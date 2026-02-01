@@ -7,12 +7,23 @@ export default function DashboardPage() {
 
   console.log('Dashboard render:', { loading, hasUser: !!user, hasProfile: !!profile });
 
-  // Show loading only for a short time, then show content even if profile is loading
-  if (loading && !user) {
-    console.log('Dashboard: Showing loading screen');
+  // Show loading only if we don't have a user yet
+  // Once we have a user, show content immediately (profile can load in background)
+  if (loading) {
+    console.log('Dashboard: Showing loading screen (waiting for user)');
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  // If no user after loading completes, this shouldn't happen (redirect should handle it)
+  if (!user) {
+    console.warn('Dashboard: No user but loading is false');
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Please sign in to continue</Text>
       </View>
     );
   }

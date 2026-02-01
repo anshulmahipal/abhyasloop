@@ -99,31 +99,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set a timeout to prevent infinite loading
     const loadingTimeout = setTimeout(() => {
       if (mounted) {
-        console.warn('Auth loading timeout - setting loading to false');
+        console.warn('Auth loading timeout - forcing loading to false');
         setLoading(false);
       }
-    }, 10000); // 10 second timeout
+    }, 3000); // 3 second timeout
 
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      clearTimeout(loadingTimeout);
-      setSession(session);
-      if (session?.user) {
-        fetchProfile(session.user.id, session.user.email).finally(() => {
-          if (mounted) setLoading(false);
-        });
-      } else {
-        setProfile(null);
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (!mounted) return;
+        clearTimeout(loadingTimeout);
+        console.log('Session fetched:', !!session);
+        setSession(session);
+        // Set loading to false immediately after getting session
         setLoading(false);
-      }
-    }).catch((error) => {
-      console.error('Error getting session:', error);
-      clearTimeout(loadingTimeout);
-      if (mounted) {
-        setLoading(false);
-      }
-    });
+        
+        // Fetch profile in background (don't block on it)
+        if (session?.user) {
+          console.log('Fetching profile for user:', session.user.id);
+          fetchProfile(session.user.id, session.user.email).catch((err) => {
+            console.error('Background profile fetch error:', err);
+          });
+        } else {
+          setProfile(null);
+        }
+      })
+      .catch((error) => {
+        console.error('Error getting session:', error);
+        clearTimeout(loadingTimeout);
+        if (mounted) {
+          setLoading(false);
+        }
+      });
 
     // Listen for auth changes
     const {
@@ -132,12 +139,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       clearTimeout(loadingTimeout);
       setSession(session);
+      // Set loading to false immediately
+      setLoading(false);
+      
+      // Fetch profile in background
       if (session?.user) {
-        await fetchProfile(session.user.id, session.user.email);
+        fetchProfile(session.user.id, session.user.email).catch((err) => {
+          console.error('Background profile fetch error:', err);
+        });
       } else {
         setProfile(null);
       }
-      if (mounted) setLoading(false);
     });
 
     return () => {

@@ -19,21 +19,47 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
+    // Set a timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('SessionContext loading timeout - setting loading to false');
+        setLoading(false);
+      }
+    }, 3000); // 3 second timeout
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (!mounted) return;
+        clearTimeout(loadingTimeout);
+        console.log('SessionContext: Session fetched:', !!session);
+        setSession(session);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error('SessionContext: Error getting session:', error);
+        clearTimeout(loadingTimeout);
+        if (mounted) {
+          setLoading(false);
+        }
+      });
 
     // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      clearTimeout(loadingTimeout);
+      console.log('SessionContext: Auth state changed:', !!session);
       setSession(session);
       setLoading(false);
     });
 
     return () => {
+      mounted = false;
+      clearTimeout(loadingTimeout);
       subscription.unsubscribe();
     };
   }, []);

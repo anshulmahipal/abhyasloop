@@ -60,19 +60,53 @@ export default function QuizPage() {
         }
       );
 
+      console.log('Quiz API response:', response);
+      console.log('Response questions:', response.questions);
+      console.log('Questions count:', response.questions?.length);
+
+      // Validate response has questions
+      if (!response.questions || !Array.isArray(response.questions) || response.questions.length === 0) {
+        console.error('Invalid or empty questions array:', response);
+        throw new Error('No questions received from the quiz service');
+      }
+
       // Map API response to Question interface format
       // Note: API returns UUID string IDs, but Question type expects number IDs
       // Using index+1 for now to match existing type, but could update type later
-      const mappedQuestions: Question[] = response.questions.map((q, index: number) => ({
-        id: index + 1,
-        question: q.question,
-        options: q.options,
-        correctIndex: q.correctIndex,
-        difficulty: q.difficulty.toLowerCase() as 'easy' | 'medium' | 'hard',
-        explanation: q.explanation,
-      }));
+      const mappedQuestions: Question[] = response.questions.map((q: any, index: number) => {
+        console.log(`Mapping question ${index}:`, q);
+        
+        // Validate question structure
+        if (!q.question || !Array.isArray(q.options) || q.options.length !== 4) {
+          console.error(`Invalid question at index ${index}:`, q);
+          throw new Error(`Invalid question format at index ${index}`);
+        }
+        
+        if (typeof q.correctIndex !== 'number' || q.correctIndex < 0 || q.correctIndex > 3) {
+          console.error(`Invalid correctIndex at index ${index}:`, q.correctIndex);
+          throw new Error(`Invalid correctIndex at index ${index}`);
+        }
+        
+        return {
+          id: index + 1,
+          question: q.question,
+          options: q.options,
+          correctIndex: q.correctIndex,
+          difficulty: (q.difficulty?.toLowerCase() || 'medium') as 'easy' | 'medium' | 'hard',
+          explanation: q.explanation || '',
+        };
+      });
+
+      console.log('Mapped questions:', mappedQuestions);
+      console.log('Mapped questions count:', mappedQuestions.length);
+      console.log('First question:', mappedQuestions[0]);
+
+      if (mappedQuestions.length === 0) {
+        throw new Error('No valid questions after mapping');
+      }
 
       setQuestions(mappedQuestions);
+      console.log('Questions state set, count:', mappedQuestions.length);
       logger.info('Quiz loaded successfully', { 
         questionCount: mappedQuestions.length,
         quizId: response.quizId,
@@ -105,6 +139,14 @@ export default function QuizPage() {
     });
   };
 
+  // Debug: Log questions state
+  useEffect(() => {
+    console.log('Questions state updated:', {
+      questionsCount: questions.length,
+      questions: questions,
+    });
+  }, [questions]);
+
   const {
     currentQuestion,
     currentQuestionIndex,
@@ -121,6 +163,11 @@ export default function QuizPage() {
     onQuizComplete: handleQuizComplete,
     userInfo,
   });
+
+  // Debug: Log current question
+  useEffect(() => {
+    console.log('Current question:', currentQuestion);
+  }, [currentQuestion]);
 
   if (isLoading) {
     return (
@@ -151,6 +198,24 @@ export default function QuizPage() {
       </View>
     );
   }
+
+  // Safety check: ensure currentQuestion exists
+  if (!currentQuestion) {
+    console.error('currentQuestion is undefined:', { questions, currentQuestionIndex });
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>Error loading question. Please try again.</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={fetchQuiz}
+        >
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  console.log('Rendering quiz UI with question:', currentQuestionIndex + 1, 'of', questions.length);
 
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>

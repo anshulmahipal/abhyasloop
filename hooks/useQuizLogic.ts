@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Question } from '../types';
 import { logger } from '../lib/logger';
 
@@ -13,6 +13,17 @@ export function useQuizLogic({ questions, onQuizComplete, userInfo }: UseQuizLog
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [hasUserAnswered, setHasUserAnswered] = useState(false);
+
+  // Reset quiz state when questions change
+  useEffect(() => {
+    if (questions.length > 0) {
+      console.log('Questions changed, resetting quiz state. Questions count:', questions.length);
+      setCurrentQuestionIndex(0);
+      setSelectedOptionIndex(null);
+      setScore(0);
+      setHasUserAnswered(false);
+    }
+  }, [questions.length]);
 
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
