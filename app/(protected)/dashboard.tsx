@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Platform, Modal, Alert, Animated } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Platform, Modal, Alert, Animated, Pressable } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -75,6 +77,8 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUpdatingFocus, setIsUpdatingFocus] = useState(false);
+  const [buttonScale] = useState(new Animated.Value(1));
+  const [isGoalModalVisible, setIsGoalModalVisible] = useState(false);
   
   // Optimistic state for UI updates - initialize with null, will be set in useEffect
   const [optimisticFocus, setOptimisticFocus] = useState<string | null>(null);
@@ -240,6 +244,61 @@ export default function DashboardPage() {
     }
   };
 
+  const handleGoalSave = async (newExams: string[]) => {
+    if (!user) {
+      Alert.alert('Error', 'Please sign in to save your goals.');
+      return;
+    }
+
+    try {
+      // Determine new current_focus
+      // If current_focus is NOT in the new list, switch to first item
+      const currentFocusValue = profile?.current_focus || null;
+      const newFocus = newExams.length > 0 
+        ? (newExams.includes(currentFocusValue || '') ? currentFocusValue : newExams[0])
+        : null;
+
+      // Update Supabase
+      const updateData: { target_exams: string[]; current_focus?: string | null } = {
+        target_exams: newExams,
+      };
+      
+      if (newFocus !== currentFocusValue) {
+        updateData.current_focus = newFocus;
+        // Optimistically update focus if it changed
+        setOptimisticFocus(newFocus);
+      }
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error('Error saving target_exams:', updateError);
+        Alert.alert('Error', 'Failed to save goals. Please try again.');
+        // Revert optimistic update on error
+        if (newFocus !== currentFocusValue) {
+          setOptimisticFocus(currentFocus);
+        }
+        return;
+      }
+
+      // Refresh profile data from AuthContext
+      await refreshProfile();
+      
+      // Refresh stats and activity to reflect new context
+      await fetchUserActivity();
+
+      Alert.alert('Success', 'Your goals have been saved!');
+    } catch (err) {
+      console.error('Failed to save goals:', err);
+      Alert.alert('Error', 'Failed to save goals. Please try again.');
+      // Revert optimistic update on error
+      setOptimisticFocus(currentFocus);
+    }
+  };
+
   // Show loading only if we don't have a user yet
   if (authLoading) {
     return (
@@ -298,219 +357,457 @@ export default function DashboardPage() {
         {/* Left Side: Label */}
         <Text style={styles.focusBarLabel}>Preparing for:</Text>
         
-        {/* Right Side: Dropdown/Picker */}
-        {Platform.OS === 'web' ? (
-          <View style={styles.focusBarDropdownWeb}>
-            <select
-              value={displayFocus}
-              onChange={(e) => {
-                if (e.target.value && e.target.value !== displayFocus) {
-                  handleFocusChange(e.target.value);
-                }
-              }}
-              disabled={isUpdatingFocus}
-              style={{
-                padding: '10px 16px',
-                fontSize: '15px',
-                fontWeight: '600',
-                borderRadius: '20px',
-                border: '1px solid rgba(0, 122, 255, 0.2)',
-                backgroundColor: 'rgba(0, 122, 255, 0.1)',
-                color: '#007AFF',
-                cursor: isUpdatingFocus ? 'not-allowed' : 'pointer',
-                outline: 'none',
-                minWidth: '180px',
-              }}
-            >
-              {targetExams.map((exam) => (
-                <option key={exam} value={exam}>
-                  {exam}
-                </option>
-              ))}
-            </select>
-          </View>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={styles.focusBarPill}
-              onPress={() => setShowDropdown(true)}
-              disabled={isUpdatingFocus}
-            >
-              <Text style={styles.focusBarValue}>{displayFocus}</Text>
-              <Text style={styles.focusBarArrow}>▼</Text>
-            </TouchableOpacity>
-            <Modal
-              visible={showDropdown}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setShowDropdown(false)}
-            >
-              <TouchableOpacity
-                style={styles.modalOverlay}
-                activeOpacity={1}
-                onPress={() => setShowDropdown(false)}
+        {/* Right Side: Dropdown/Picker + Edit Icon */}
+        <View style={styles.focusBarRight}>
+          {Platform.OS === 'web' ? (
+            <View style={styles.focusBarDropdownWeb}>
+              <select
+                value={displayFocus}
+                onChange={(e) => {
+                  if (e.target.value && e.target.value !== displayFocus) {
+                    handleFocusChange(e.target.value);
+                  }
+                }}
+                disabled={isUpdatingFocus}
+                style={{
+                  padding: '10px 16px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  borderRadius: '20px',
+                  border: '1px solid rgba(0, 122, 255, 0.2)',
+                  backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                  color: '#007AFF',
+                  cursor: isUpdatingFocus ? 'not-allowed' : 'pointer',
+                  outline: 'none',
+                  minWidth: '180px',
+                }}
               >
-                <View style={styles.modalContent}>
-                  {targetExams.map((exam) => {
-                    const isSelected = optimisticFocus === exam;
-                    return (
-                      <TouchableOpacity
-                        key={exam}
-                        style={[
-                          styles.dropdownOption,
-                          isSelected && styles.dropdownOptionSelected,
-                        ]}
-                        onPress={() => {
-                          handleFocusChange(exam);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.dropdownOptionText,
-                            isSelected && styles.dropdownOptionTextSelected,
-                          ]}
-                        >
-                          {exam}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                {targetExams.map((exam) => (
+                  <option key={exam} value={exam}>
+                    {exam}
+                  </option>
+                ))}
+              </select>
+            </View>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={styles.focusBarPill}
+                onPress={() => setShowDropdown(true)}
+                disabled={isUpdatingFocus}
+              >
+                <Text style={styles.focusBarValue}>{displayFocus}</Text>
+                <Text style={styles.focusBarArrow}>▼</Text>
               </TouchableOpacity>
-            </Modal>
-          </>
-        )}
+              <Modal
+                visible={showDropdown}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowDropdown(false)}
+              >
+                <Pressable
+                  style={styles.modalOverlay}
+                  onPress={() => setShowDropdown(false)}
+                >
+                  <Pressable
+                    style={styles.modalContent}
+                    onPress={(e) => e.stopPropagation()}
+                  >
+                    {targetExams.map((exam) => {
+                      const isSelected = optimisticFocus === exam;
+                      return (
+                        <TouchableOpacity
+                          key={exam}
+                          style={[
+                            styles.dropdownOption,
+                            isSelected && styles.dropdownOptionSelected,
+                          ]}
+                          onPress={() => {
+                            handleFocusChange(exam);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.dropdownOptionText,
+                              isSelected && styles.dropdownOptionTextSelected,
+                            ]}
+                          >
+                            {exam}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </Pressable>
+                </Pressable>
+              </Modal>
+            </>
+          )}
+          <TouchableOpacity
+            style={styles.editIconButton}
+            onPress={() => setIsGoalModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="pencil" size={18} color="#007AFF" />
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
 
-  const renderGamificationStats = () => {
+  const renderHeroSection = () => {
     const coins = profile?.coins || 0;
+    const currentStreak = profile?.current_streak || 0;
+    const nextMilestone = 7; // 7-day milestone
+    const streakProgress = Math.min((currentStreak / nextMilestone) * 100, 100);
 
     return (
-      <View style={styles.gamificationContainer}>
-        {/* Streak */}
-        <View style={styles.gamificationItem}>
-          <Animated.Text
-            style={[
-              styles.gamificationIcon,
-              styles.streakIcon,
-              shouldPulse && { transform: [{ scale: pulseAnim }] },
-            ]}
-          >
-            🔥
-          </Animated.Text>
-          <Text style={styles.gamificationValue}>{streak}</Text>
+      <View style={styles.heroCard}>
+        {/* Top Row: Hello + Profile Pic */}
+        <View style={styles.heroTopRow}>
+          <Text style={styles.heroGreeting}>Hello, {displayName}</Text>
+          {profile?.avatar_url ? (
+            <View style={styles.profilePicContainer}>
+              <Text style={styles.profilePicText}>
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.profilePicContainer}>
+              <Ionicons name="person" size={24} color="#007AFF" />
+            </View>
+          )}
         </View>
 
-        {/* Coins */}
-        <View style={styles.gamificationItem}>
-          <Text style={[styles.gamificationIcon, styles.coinsIcon]}>🪙</Text>
-          <Text style={styles.gamificationValue}>{coins}</Text>
+        {/* Middle: Focus Pill */}
+        <View style={styles.heroFocusPill}>
+          <Text style={styles.heroFocusText}>Focus: {optimisticFocus || currentFocus || 'General Knowledge'}</Text>
+        </View>
+
+        {/* Bottom Row: Streak with Progress */}
+        <View style={styles.heroStreakSection}>
+          <View style={styles.heroStreakRow}>
+            <Animated.Text
+              style={[
+                styles.heroStreakIcon,
+                shouldPulse && { transform: [{ scale: pulseAnim }] },
+              ]}
+            >
+              🔥
+            </Animated.Text>
+            <Text style={styles.heroStreakText}>
+              {currentStreak} Day Streak
+            </Text>
+          </View>
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBarBackground}>
+              <View 
+                style={[
+                  styles.progressBarFill,
+                  { width: `${streakProgress}%` }
+                ]} 
+              />
+            </View>
+            <Text style={styles.progressBarText}>
+              {currentStreak}/{nextMilestone} days
+            </Text>
+          </View>
         </View>
       </View>
+    );
+  };
+
+  const renderStatCard = (icon: string, value: string | number, label: string, iconName?: keyof typeof Ionicons.glyphMap) => {
+    return (
+      <View style={styles.statCard}>
+        <View style={styles.statIconContainer}>
+          {iconName ? (
+            <Ionicons name={iconName} size={24} color="#007AFF" />
+          ) : (
+            <Text style={styles.statIcon}>{icon}</Text>
+          )}
+        </View>
+        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
+    );
+  };
+
+  const coins = profile?.coins || 0;
+  const mistakesPending = 0; // Mock count
+
+  const handleButtonPress = () => {
+    Animated.sequence([
+      Animated.timing(buttonScale, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(buttonScale, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const getScoreColor = (score: number, total: number) => {
+    const percentage = (score / total) * 100;
+    if (percentage > 80) return '#4CAF50'; // Green
+    if (percentage < 50) return '#F44336'; // Red
+    return '#FF9800'; // Orange
+  };
+
+  const handleLogout = async () => {
+    console.log('Logout button pressed'); // Debug log
+    
+    // Web-specific confirmation
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const confirmed = window.confirm('Are you sure you want to log out?');
+      if (!confirmed) {
+        return;
+      }
+      
+      try {
+        console.log('Signing out...'); // Debug log
+        await supabase.auth.signOut();
+        // The _layout.tsx session listener will automatically redirect to Login
+      } catch (error) {
+        console.error('Error signing out:', error);
+        window.alert('Failed to log out. Please try again.');
+      }
+      return;
+    }
+    
+    // Native platforms use Alert
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('Signing out...'); // Debug log
+              await supabase.auth.signOut();
+              // The _layout.tsx session listener will automatically redirect to Login
+            } catch (error) {
+              console.error('Error signing out:', error);
+              Alert.alert('Error', 'Failed to log out. Please try again.');
+            }
+          },
+        },
+      ]
     );
   };
 
   return (
-    <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.container}>
-        {/* Exam Focus Switcher - Header Section */}
-        {renderExamFocusSwitcher()}
-        
-        {/* Show GoalSelector if user has no target exams set in profile */}
-        {(!profile?.target_exams || profile.target_exams.length === 0) && (
-          <GoalSelector
-            onSave={(selectedExams) => {
-              // Refresh after saving goals
-              if (selectedExams.length > 0) {
-                setShowDropdown(false);
-              }
-            }}
-          />
-        )}
-        
-        {/* Header with Welcome and Gamification Stats */}
-        <View style={styles.headerRow}>
-          <Text style={styles.welcomeText}>Welcome, {displayName}!</Text>
-          {renderGamificationStats()}
-        </View>
-
-        {/* Start New Quiz Button */}
-        <Link href="/(protected)/quiz/config" style={styles.newQuizButton}>
-          <Text style={styles.newQuizButtonText}>Start New Quiz</Text>
-        </Link>
-
-        {isLoading ? (
-          <SkeletonLoader />
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>⚠️ {error}</Text>
+    <View style={styles.mainContainer}>
+      {/* Header - Background Layer */}
+      <LinearGradient
+        colors={['#6a11cb', '#2575fc']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerBackground}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerTopRow}>
+            <Text style={styles.headerTitle}>New Mission</Text>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="log-out-outline" size={24} color="#ffffff" />
+            </TouchableOpacity>
           </View>
-        ) : (
-          <>
-            {/* Stats Row */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{stats.totalQuizzes}</Text>
-                <Text style={styles.statLabel}>Total Quizzes</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{stats.averageScore}%</Text>
-                <Text style={styles.statLabel}>Average Score</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{stats.bestStreak}</Text>
-                <Text style={styles.statLabel}>Best Streak</Text>
-              </View>
-            </View>
+          <View style={styles.targetingPill}>
+            <Text style={styles.targetingPillText}>
+              Targeting: {optimisticFocus || currentFocus || 'General Knowledge'}
+            </Text>
+          </View>
+        </View>
+      </LinearGradient>
 
-            {/* Recent Activity */}
-            <Text style={styles.sectionTitle}>Recent Activity</Text>
-            {attempts.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>No quizzes completed yet</Text>
-                <Text style={styles.emptyStateSubtext}>Start your first quiz to see your activity here!</Text>
-              </View>
-            ) : (
-              <View style={styles.activityList}>
-                {attempts.map((attempt) => (
+      {/* ScrollView - Foreground Layer */}
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.contentWrapper}>
+          {/* Hero Section */}
+          {renderHeroSection()}
+
+          {/* Exam Focus Switcher */}
+          {renderExamFocusSwitcher()}
+
+          {/* Stats Grid - 2 columns */}
+          <View style={styles.statsGrid}>
+            {renderStatCard('🪙', coins, 'Coins', 'wallet')}
+            {renderStatCard('🎯', `${stats.averageScore}%`, 'Average Score', 'trophy')}
+            {renderStatCard('📊', stats.totalQuizzes, 'Total Quizzes', 'document-text')}
+            {renderStatCard('⚠️', mistakesPending, 'Mistakes Pending', 'alert-circle')}
+          </View>
+
+          {/* Recent Activity */}
+          <Text style={styles.sectionTitle}>Recent History</Text>
+          {isLoading ? (
+            <SkeletonLoader />
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : attempts.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No quizzes completed yet</Text>
+              <Text style={styles.emptyStateSubtext}>Start your first quiz to see your activity here!</Text>
+            </View>
+          ) : (
+            <View style={styles.activityList}>
+              {attempts.map((attempt) => {
+                const percentage = (attempt.score / attempt.total_questions) * 100;
+                const scoreColor = getScoreColor(attempt.score, attempt.total_questions);
+                
+                return (
                   <View key={attempt.id} style={styles.activityItem}>
+                    <View style={[styles.activityDot, { backgroundColor: scoreColor }]} />
                     <View style={styles.activityContent}>
                       <Text style={styles.activityTopic}>
                         {attempt.generated_quizzes?.topic || 'Unknown Topic'}
-                      </Text>
-                      <Text style={styles.activityScore}>
-                        {attempt.score} / {attempt.total_questions}
                       </Text>
                       <Text style={styles.activityDate}>
                         {formatDate(attempt.completed_at)}
                       </Text>
                     </View>
-                    <TouchableOpacity
-                      style={styles.viewButton}
-                      onPress={() => handleViewResult(attempt.id)}
-                    >
-                      <Text style={styles.viewButtonText}>View</Text>
-                    </TouchableOpacity>
+                    <View style={[styles.scoreBadge, { backgroundColor: scoreColor }]}>
+                      <Text style={styles.scoreBadgeText}>
+                        {attempt.score}/{attempt.total_questions}
+                      </Text>
+                    </View>
                   </View>
-                ))}
-              </View>
-            )}
-          </>
-        )}
-      </View>
-    </ScrollView>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Floating Action Button - Fixed Footer */}
+      <Link href="/(protected)/quiz/config" asChild>
+        <Pressable
+          onPress={handleButtonPress}
+          style={({ pressed }) => [
+            styles.floatingButton,
+            {
+              transform: [{ scale: pressed ? 0.95 : 1 }],
+            },
+          ]}
+        >
+          {({ pressed }) => (
+            <Animated.View
+              style={[
+                styles.floatingButtonInner,
+                { transform: [{ scale: buttonScale }] },
+              ]}
+            >
+              <LinearGradient
+                colors={['#FF6B35', '#F7931E']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.floatingButtonGradient}
+              >
+                <Text style={styles.floatingButtonText}>Start New Quiz</Text>
+                <Ionicons name="arrow-forward" size={20} color="#ffffff" style={{ marginLeft: 8 }} />
+              </LinearGradient>
+            </Animated.View>
+          )}
+        </Pressable>
+      </Link>
+
+      {/* Goal Selector Modal */}
+      <GoalSelector
+        visible={isGoalModalVisible}
+        onClose={() => setIsGoalModalVisible(false)}
+        initialSelection={targetExams}
+        onSave={handleGoalSave}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
+  },
+  // Header - Background Layer
+  headerBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 280,
+    zIndex: 1,
+  },
+  headerContent: {
+    paddingTop: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    zIndex: 2,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 500,
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  logoutButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    zIndex: 2,
+  },
+  targetingPill: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  targetingPillText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
   scrollView: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'transparent',
   },
   scrollContent: {
-    flexGrow: 1,
+    paddingTop: 180,
+    paddingBottom: 120,
+    alignItems: 'center',
+  },
+  contentWrapper: {
+    width: '90%',
+    maxWidth: 500,
   },
   container: {
     flex: 1,
@@ -519,117 +816,146 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
   },
-  headerRow: {
+  // Hero Section
+  heroCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  heroGreeting: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
+  profilePicContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profilePicText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#007AFF',
+  },
+  heroFocusPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 122, 255, 0.2)',
+  },
+  heroFocusText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  heroStreakSection: {
+    width: '100%',
+  },
+  heroStreakRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-    flexWrap: 'wrap',
-    gap: 16,
+    marginBottom: 12,
   },
-  welcomeText: {
+  heroStreakIcon: {
+    fontSize: 32,
+    marginRight: 8,
+  },
+  heroStreakText: {
     fontSize: 28,
     fontWeight: '700',
     color: '#1a1a1a',
-    flex: 1,
-    minWidth: 200,
   },
-  gamificationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
+  progressBarContainer: {
+    width: '100%',
   },
-  gamificationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBarFill: {
+    height: '100%',
     backgroundColor: '#ffffff',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    borderRadius: 4,
+  },
+  progressBarText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '600',
+  },
+  // Stats Grid
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 32,
+  },
+  statCard: {
+    width: '48%',
+    aspectRatio: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  gamificationIcon: {
-    fontSize: 24,
-  },
-  streakIcon: {
-    color: '#FF6B35',
-  },
-  coinsIcon: {
-    color: '#FFD700',
-  },
-  gamificationValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  newQuizButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 32,
-    shadowColor: '#007AFF',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  newQuizButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 16,
-    marginBottom: 32,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 4,
+    justifyContent: 'space-between',
+  },
+  statIconContainer: {
+    alignSelf: 'flex-start',
+  },
+  statIcon: {
+    fontSize: 24,
   },
   statValue: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '700',
-    color: '#007AFF',
-    marginBottom: 8,
+    color: '#1a1a1a',
+    marginTop: 'auto',
+    marginBottom: 4,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#666',
     fontWeight: '500',
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#1a1a1a',
     marginBottom: 16,
   },
   activityList: {
-    gap: 12,
+    gap: 10,
     marginBottom: 32,
   },
   activityItem: {
@@ -638,7 +964,7 @@ const styles = StyleSheet.create({
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -647,6 +973,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  activityDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
   },
   activityContent: {
     flex: 1,
@@ -657,26 +989,56 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     marginBottom: 4,
   },
-  activityScore: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
-    marginBottom: 4,
-  },
   activityDate: {
     fontSize: 12,
     color: '#999',
   },
-  viewButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
+  scoreBadge: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    minWidth: 50,
+    alignItems: 'center',
   },
-  viewButtonText: {
+  scoreBadgeText: {
     color: '#ffffff',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  // Floating Action Button - Fixed Footer
+  floatingButton: {
+    position: 'absolute',
+    bottom: 30,
+    left: '5%',
+    right: '5%',
+    width: '90%',
+    maxWidth: 500,
+    alignSelf: 'center',
+    zIndex: 10,
+  },
+  floatingButtonInner: {
+    width: '100%',
+  },
+  floatingButtonGradient: {
+    paddingVertical: 18,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FF6B35',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  floatingButtonText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
   },
   emptyState: {
     backgroundColor: '#ffffff',
@@ -767,6 +1129,11 @@ const styles = StyleSheet.create({
     color: '#666',
     marginRight: 12,
   },
+  focusBarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   focusBarPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -777,6 +1144,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0, 122, 255, 0.2)',
     minWidth: 180,
+  },
+  editIconButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 122, 255, 0.2)',
   },
   focusBarValue: {
     fontSize: 15,

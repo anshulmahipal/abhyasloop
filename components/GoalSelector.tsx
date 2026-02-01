@@ -1,28 +1,34 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
-
-const AVAILABLE_EXAMS = ['SSC', 'Banking', 'Railways', 'Defence'];
+import {
+  View,
+  Text,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  SectionList,
+  Pressable,
+} from 'react-native';
+import { EXAM_CATEGORIES } from '../constants/exams';
 
 interface GoalSelectorProps {
-  onSave?: (selectedExams: string[]) => void;
+  visible: boolean;
+  onClose: () => void;
+  initialSelection?: string[];
+  onSave: (selectedExams: string[]) => void;
 }
 
-export function GoalSelector({ onSave }: GoalSelectorProps) {
-  const { profile, user, refreshProfile } = useAuth();
-  const [selectedExams, setSelectedExams] = useState<string[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+interface SectionData {
+  title: string;
+  data: string[];
+}
 
-  // Initialize selected exams from profile
+export function GoalSelector({ visible, onClose, initialSelection = [], onSave }: GoalSelectorProps) {
+  const [selectedExams, setSelectedExams] = useState<string[]>(initialSelection);
+
+  // Update local state when initialSelection changes
   useEffect(() => {
-    if (profile) {
-      const targetExams = profile.target_exams || [];
-      setSelectedExams(targetExams);
-      setIsLoading(false);
-    }
-  }, [profile]);
+    setSelectedExams(initialSelection);
+  }, [initialSelection, visible]);
 
   const toggleExam = (exam: string) => {
     setSelectedExams((prev) => {
@@ -34,105 +40,139 @@ export function GoalSelector({ onSave }: GoalSelectorProps) {
     });
   };
 
-  const handleSave = async () => {
-    if (!user) {
-      Alert.alert('Error', 'Please sign in to save your goals.');
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({ target_exams: selectedExams })
-        .eq('id', user.id);
-
-      if (error) {
-        console.error('Error saving target_exams:', error);
-        Alert.alert('Error', 'Failed to save goals. Please try again.');
-        return;
-      }
-
-      // Refresh profile to get updated data
-      await refreshProfile();
-
-      // Call optional callback
-      if (onSave) {
-        onSave(selectedExams);
-      }
-
-      Alert.alert('Success', 'Your goals have been saved!');
-    } catch (err) {
-      console.error('Failed to save goals:', err);
-      Alert.alert('Error', 'Failed to save goals. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSave = () => {
+    onSave(selectedExams);
+    onClose();
   };
 
-  if (isLoading) {
+  // Transform EXAM_CATEGORIES into SectionList format
+  // Each section has a single item that contains all exams for that category
+  const sections: SectionData[] = EXAM_CATEGORIES.map((category) => ({
+    title: category.name,
+    data: [category.exams], // Wrap exams array in an array so SectionList treats it as one item
+  }));
+
+  const renderSectionHeader = ({ section }: { section: SectionData }) => (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionHeaderText}>{section.title}</Text>
+    </View>
+  );
+
+  const renderItem = ({ item }: { item: string[] }) => {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="small" color="#007AFF" />
+      <View style={styles.itemContainer}>
+        <View style={styles.chipsRow}>
+          {item.map((exam) => {
+            const isSelected = selectedExams.includes(exam);
+            return (
+              <TouchableOpacity
+                key={exam}
+                style={[styles.examChip, isSelected && styles.examChipSelected]}
+                onPress={() => toggleExam(exam)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.examChipText, isSelected && styles.examChipTextSelected]}>
+                  {exam}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     );
-  }
+  };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Select Your Target Exams</Text>
-      <Text style={styles.subtitle}>Choose all exams you're preparing for</Text>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.header}>
+            <Pressable style={styles.handleBarContainer} onPress={onClose}>
+              <View style={styles.handleBar} />
+            </Pressable>
+            <Text style={styles.title}>Select Your Target Exams</Text>
+            <Text style={styles.subtitle}>Choose all exams you're preparing for</Text>
+          </View>
 
-      <View style={styles.chipsContainer}>
-        {AVAILABLE_EXAMS.map((exam) => {
-          const isSelected = selectedExams.includes(exam);
-          return (
+          <SectionList
+            sections={sections}
+            keyExtractor={(item, index) => `section-${index}`}
+            renderItem={renderItem}
+            renderSectionHeader={renderSectionHeader}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            stickySectionHeadersEnabled={true}
+          />
+
+          <View style={styles.footer}>
             <TouchableOpacity
-              key={exam}
-              style={[styles.chip, isSelected && styles.chipSelected]}
-              onPress={() => toggleExam(exam)}
+              style={styles.cancelButton}
+              onPress={onClose}
+              activeOpacity={0.8}
             >
-              <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-                {exam}
-              </Text>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <TouchableOpacity
-        style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
-        onPress={handleSave}
-        disabled={isSaving}
-      >
-        {isSaving ? (
-          <ActivityIndicator color="#ffffff" size="small" />
-        ) : (
-          <Text style={styles.saveButtonText}>Save Goals</Text>
-        )}
-      </TouchableOpacity>
-    </View>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={handleSave}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.saveButtonText}>Save Goals</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    marginVertical: 16,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '90%',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: -4,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  header: {
+    paddingTop: 12,
+    paddingBottom: 20,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  handleBarContainer: {
+    paddingVertical: 8,
+    paddingHorizontal: '50%',
+    marginBottom: 8,
+    alignSelf: 'center',
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#ccc',
+    borderRadius: 2,
+    alignSelf: 'center',
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     color: '#1a1a1a',
     marginBottom: 8,
@@ -140,56 +180,104 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 20,
   },
-  chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 24,
+  listContent: {
+    padding: 16,
+    paddingBottom: 100,
   },
-  chip: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
+  itemContainer: {
+    marginBottom: 16,
   },
-  chipSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+  sectionHeader: {
+    backgroundColor: '#2a2a2a',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 8,
   },
-  chipText: {
+  sectionHeaderText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
-  chipTextSelected: {
+    fontWeight: '700',
     color: '#ffffff',
   },
-  saveButton: {
-    paddingVertical: 14,
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  examChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  examChipSelected: {
+    backgroundColor: '#FF6B35',
+    borderColor: '#FF6B35',
+  },
+  examChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  examChipTextSelected: {
+    color: '#ffffff',
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    paddingBottom: 32,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 16,
     paddingHorizontal: 32,
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#007AFF',
+  },
+  cancelButtonText: {
+    color: '#666',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  saveButton: {
+    flex: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    backgroundColor: '#FF6B35',
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#FF6B35',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 8,
   },
-  saveButtonDisabled: {
-    backgroundColor: '#ccc',
-    shadowOpacity: 0,
-  },
   saveButtonText: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
   },
 });
