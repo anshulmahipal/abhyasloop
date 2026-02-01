@@ -25,6 +25,15 @@ interface Question {
   explanation: string;
 }
 
+interface DbQuestion {
+  id: string;
+  question_text: string;
+  options: string[];
+  correct_index: number;
+  difficulty: 'easy' | 'medium' | 'hard';
+  explanation: string;
+}
+
 interface GeminiResponse {
   candidates: Array<{
     content: {
@@ -95,9 +104,59 @@ serve(async (req: Request) => {
   }
 
   try {
+    // Check for Authorization header first
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        }
+      );
+    }
+
+    // Initialize Supabase client with authenticated user context
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Missing Supabase configuration');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        }
+      );
+    }
+
+    // Create client with Authorization header so RLS policies work correctly
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+
+    // Get authenticated user securely using the client (which has the auth header)
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('Auth error:', authError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        }
+      );
+    }
+
     // Log request details for debugging
     console.log('Request method:', req.method);
-    console.log('Request headers:', Object.fromEntries(req.headers.entries()));
+    console.log('User ID:', user.id);
     
     // Parse request body
     let body: RequestBody;
@@ -492,11 +551,91 @@ serve(async (req: Request) => {
       }
     }
 
-    // Return the questions
+    // Create quiz record in generated_quizzes table
+    const { data: quizData, error: quizError } = await supabase
+      .from('generated_quizzes')
+      .insert({
+        topic: topic,
+        difficulty: normalizedDifficulty,
+        user_id: user.id,
+      })
+      .select('id')
+      .single();
+
+    if (quizError || !quizData) {
+      console.error('Error creating quiz:', quizError);
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to create quiz record',
+          details: quizError?.message || 'Database error',
+        }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    }
+
+    const quizId = quizData.id;
+    console.log('Created quiz with ID:', quizId);
+
+    // Insert questions into questions table
+    const questionsToInsert = parsedResponse.questions.map((q: Question) => ({
+      quiz_id: quizId,
+      question_text: q.question,
+      options: q.options, // JSONB array
+      correct_index: q.correctIndex,
+      explanation: q.explanation,
+      topic: topic,
+      difficulty: normalizedDifficulty,
+    }));
+
+    const { data: insertedQuestions, error: questionsError } = await supabase
+      .from('questions')
+      .insert(questionsToInsert)
+      .select('id, question_text, options, correct_index, explanation, difficulty');
+
+    if (questionsError || !insertedQuestions) {
+      console.error('Error inserting questions:', questionsError);
+      // Try to clean up the quiz record if questions insertion fails
+      await supabase.from('generated_quizzes').delete().eq('id', quizId);
+      
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to insert questions',
+          details: questionsError?.message || 'Database error',
+        }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    }
+
+    console.log(`Inserted ${insertedQuestions.length} questions`);
+
+    // Map database records to frontend format
+    const questionsWithIds = insertedQuestions.map((dbQuestion: DbQuestion) => ({
+      id: dbQuestion.id,
+      question: dbQuestion.question_text,
+      options: dbQuestion.options,
+      correctIndex: dbQuestion.correct_index,
+      difficulty: dbQuestion.difficulty,
+      explanation: dbQuestion.explanation,
+    }));
+
+    // Return the questions with their DB IDs
     return new Response(
       JSON.stringify({
         success: true,
-        questions: parsedResponse.questions,
+        quizId: quizId,
+        questions: questionsWithIds,
       }),
       {
         status: 200,

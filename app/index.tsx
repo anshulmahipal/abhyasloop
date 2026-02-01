@@ -21,7 +21,7 @@ export default function LandingPage() {
           <Text style={[styles.heroSubtitle, isMobile && styles.heroSubtitleMobile]}>
             Prepare smarter, practice endlessly, and ace your government exams with AI-powered questions and instant feedback.
           </Text>
-          <Link href="/auth/login" asChild>
+          <Link href="/auth" asChild>
             <TouchableOpacity
               style={styles.ctaButton}
               onPress={() => {

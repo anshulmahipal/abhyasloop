@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import { useTimer } from '../../../hooks/useTimer';
@@ -8,7 +8,7 @@ import { QuizOption } from '../../../components/QuizOption';
 import { ProgressBar } from '../../../components/ProgressBar';
 import { DifficultyBadge } from '../../../components/DifficultyBadge';
 import { logger } from '../../../lib/logger';
-import mockQuestions from '../../../data/mockQuestions.json';
+import { generateQuiz } from '../../../lib/api';
 import { Question } from '../../../types';
 
 export async function generateStaticParams() {
@@ -20,18 +20,79 @@ export async function generateStaticParams() {
 }
 
 export default function QuizPage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ 
+    id?: string; 
+    topic?: string; 
+    difficulty?: 'easy' | 'medium' | 'hard' 
+  }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
-  const questions: Question[] = mockQuestions as Question[];
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { timer, formatTime } = useTimer(true);
 
+  // Get topic and difficulty from params, with defaults
+  const topic = params.topic || 'General Knowledge';
+  const difficulty = (params.difficulty || 'medium') as 'easy' | 'medium' | 'hard';
+
   const userInfo = {
-    id: id || 'unknown',
+    id: params.id || 'unknown',
     name: 'Quiz User',
   };
+
+  const fetchQuiz = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await logger.apiCallAsync(
+        'Generate Quiz',
+        async () => {
+          return await generateQuiz(topic, difficulty);
+        },
+        {
+          url: 'generate-quiz',
+          method: 'POST',
+          userInfo,
+        }
+      );
+
+      // Map API response to Question interface format
+      // Note: API returns UUID string IDs, but Question type expects number IDs
+      // Using index+1 for now to match existing type, but could update type later
+      const mappedQuestions: Question[] = response.questions.map((q, index: number) => ({
+        id: index + 1,
+        question: q.question,
+        options: q.options,
+        correctIndex: q.correctIndex,
+        difficulty: q.difficulty.toLowerCase() as 'easy' | 'medium' | 'hard',
+        explanation: q.explanation,
+      }));
+
+      setQuestions(mappedQuestions);
+      logger.info('Quiz loaded successfully', { 
+        questionCount: mappedQuestions.length,
+        quizId: response.quizId,
+        topic,
+        difficulty,
+      });
+    } catch (err) {
+      logger.error('Failed to generate quiz', err);
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : 'Failed to generate quiz. Please try again.';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchQuiz();
+  }, [topic, difficulty]);
 
   const handleQuizComplete = (score: number, total: number) => {
     logger.userAction('Navigating to Results', userInfo, { score, total });
@@ -60,6 +121,36 @@ export default function QuizPage() {
     onQuizComplete: handleQuizComplete,
     userInfo,
   });
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>⚠️ {error}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={fetchQuiz}
+        >
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>No questions available</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -211,6 +302,33 @@ const styles = StyleSheet.create({
   nextButtonText: {
     color: '#ffffff',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 400,
+  },
+  loadingText: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#d32f2f',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: '600',
   },
 });
