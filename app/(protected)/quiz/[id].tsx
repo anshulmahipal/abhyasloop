@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, ActivityIndicator, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import { useTimer } from '../../../hooks/useTimer';
@@ -10,6 +10,8 @@ import { DifficultyBadge } from '../../../components/DifficultyBadge';
 import { logger } from '../../../lib/logger';
 import { generateQuiz } from '../../../lib/api';
 import { Question } from '../../../types';
+import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
 
 export async function generateStaticParams() {
   return [
@@ -32,7 +34,11 @@ export default function QuizPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [quizId, setQuizId] = useState<string | null>(null);
+  const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { timer, formatTime } = useTimer(true);
+  const { user } = useAuth();
 
   // Get topic and difficulty from params, with defaults
   const topic = params.topic || 'General Knowledge';
@@ -106,6 +112,8 @@ export default function QuizPage() {
       }
 
       setQuestions(mappedQuestions);
+      setQuizId(response.quizId);
+      setUserAnswers(new Array(mappedQuestions.length).fill(null));
       console.log('Questions state set, count:', mappedQuestions.length);
       logger.info('Quiz loaded successfully', { 
         questionCount: mappedQuestions.length,
@@ -128,16 +136,80 @@ export default function QuizPage() {
     fetchQuiz();
   }, [topic, difficulty]);
 
-  const handleQuizComplete = (score: number, total: number) => {
-    logger.userAction('Navigating to Results', userInfo, { score, total });
-    router.push({
-      pathname: '/(protected)/result',
-      params: {
-        score: score.toString(),
-        total: total.toString(),
-      },
-    });
+  const handleQuizSubmit = async () => {
+    if (!quizId || !user) {
+      Alert.alert('Error', 'Unable to submit quiz. Please try again.');
+      logger.error('Quiz submission failed: missing quizId or user', { quizId, userId: user?.id });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Calculate score by comparing userAnswers with correct answers
+      let score = 0;
+      for (let i = 0; i < questions.length; i++) {
+        if (userAnswers[i] !== null && userAnswers[i] === questions[i].correctIndex) {
+          score++;
+        }
+      }
+
+      const totalQuestions = questions.length;
+
+      logger.info('Calculating quiz score', {
+        score,
+        totalQuestions,
+        userAnswers,
+        quizId,
+      });
+
+      // Save to quiz_attempts table
+      const { data: attemptData, error: insertError } = await supabase
+        .from('quiz_attempts')
+        .insert({
+          quiz_id: quizId,
+          user_id: user.id,
+          score: score,
+          total_questions: totalQuestions,
+        })
+        .select('id')
+        .single();
+
+      if (insertError || !attemptData) {
+        console.error('Error saving quiz attempt:', insertError);
+        logger.error('Failed to save quiz attempt', insertError);
+        Alert.alert('Error', 'Failed to save your quiz results. Please try again.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      logger.userAction('Quiz Submitted', userInfo, {
+        attemptId: attemptData.id,
+        score,
+        totalQuestions,
+        quizId,
+      });
+
+      // Navigate to result screen with attemptId
+      router.replace({
+        pathname: '/(protected)/result',
+        params: {
+          attemptId: attemptData.id,
+        },
+      });
+    } catch (err) {
+      logger.error('Quiz submission error', err);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      setIsSubmitting(false);
+    }
   };
+
+  // Reset userAnswers when questions change
+  useEffect(() => {
+    if (questions.length > 0) {
+      setUserAnswers(new Array(questions.length).fill(null));
+    }
+  }, [questions.length]);
 
   // Debug: Log questions state
   useEffect(() => {
@@ -155,14 +227,36 @@ export default function QuizPage() {
     hasUserAnswered,
     isLastQuestion,
     progressPercentage,
-    handleOptionSelect,
-    handleNext,
+    handleOptionSelect: originalHandleOptionSelect,
+    handleNext: originalHandleNext,
     getOptionState,
   } = useQuizLogic({
     questions,
-    onQuizComplete: handleQuizComplete,
+    onQuizComplete: () => {}, // We'll handle completion ourselves
     userInfo,
   });
+
+  // Override handleOptionSelect to track answers in userAnswers array
+  const handleOptionSelect = (optionIndex: number) => {
+    originalHandleOptionSelect(optionIndex);
+    // Update userAnswers array with the selected answer for current question
+    const newAnswers = [...userAnswers];
+    newAnswers[currentQuestionIndex] = optionIndex;
+    setUserAnswers(newAnswers);
+  };
+
+  // Override handleNext to handle submission on last question
+  const handleNext = () => {
+    if (!hasUserAnswered) return;
+
+    if (isLastQuestion) {
+      // On last question, submit the quiz
+      handleQuizSubmit();
+    } else {
+      // Otherwise, proceed to next question
+      originalHandleNext();
+    }
+  };
 
   // Debug: Log current question
   useEffect(() => {
@@ -256,13 +350,17 @@ export default function QuizPage() {
         )}
 
         <TouchableOpacity
-          style={[styles.nextButton, !hasUserAnswered && styles.nextButtonDisabled]}
+          style={[styles.nextButton, (!hasUserAnswered || isSubmitting) && styles.nextButtonDisabled]}
           onPress={handleNext}
-          disabled={!hasUserAnswered}
+          disabled={!hasUserAnswered || isSubmitting}
         >
-          <Text style={styles.nextButtonText}>
-            {isLastQuestion ? 'Finish Quiz' : 'Next Question'}
-          </Text>
+          {isSubmitting ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.nextButtonText}>
+              {isLastQuestion ? 'Finish Quiz' : 'Next Question'}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
