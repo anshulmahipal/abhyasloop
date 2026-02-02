@@ -18,6 +18,7 @@ interface RequestBody {
   examType?: string | null;
   examContext?: string | null;
   userFocus?: string | null;
+  questionCount?: number;
 }
 
 interface Question {
@@ -48,7 +49,7 @@ interface GeminiResponse {
   }>;
 }
 
-const SYSTEM_PROMPT_TEMPLATE = (userFocus: string, topic: string, difficulty: string, contextRules: string, focusInstructions: string) => `You are an expert exam setter for ${userFocus}. Generate exactly 5 multiple-choice questions on ${topic}. Difficulty: ${difficulty}.
+const SYSTEM_PROMPT_TEMPLATE = (userFocus: string, topic: string, difficulty: string, contextRules: string, focusInstructions: string, questionCount: number = 5) => `You are an expert exam setter for ${userFocus}. Generate exactly ${questionCount} multiple-choice questions on ${topic}. Difficulty: ${difficulty}.
 ${focusInstructions ? `\n${focusInstructions}\n` : ''}
 Context Rules:
 
@@ -205,10 +206,14 @@ serve(async (req: Request) => {
       console.log('Found nested body, using body.body');
     }
 
-    let { topic, difficulty, examType, examContext, userFocus } = requestBody;
+    let { topic, difficulty, examType, examContext, userFocus, questionCount } = requestBody;
     
     // Extract userFocus from request body, default to 'General Knowledge' if missing
     const userFocusValue = userFocus || 'General Knowledge';
+    
+    // Validate and set questionCount (default to 5, valid values: 5, 10, 15, 20)
+    const validCounts = [5, 10, 15, 20];
+    const questionCountValue = (questionCount && validCounts.includes(questionCount)) ? questionCount : 5;
     
     // Input Validation & Security Checks
     // 1. Length Limit (Simple but effective)
@@ -378,7 +383,7 @@ serve(async (req: Request) => {
     const contextRules = getContextRules(userFocusValue);
     
     // Build the prompt dynamically using the template function
-    const prompt = SYSTEM_PROMPT_TEMPLATE(userFocusValue, topic, normalizedDifficulty, contextRules, focusInstructions);
+    const prompt = SYSTEM_PROMPT_TEMPLATE(userFocusValue, topic, normalizedDifficulty, contextRules, focusInstructions, questionCountValue);
     
     console.log('Prompt length:', prompt.length);
     console.log('Prompt preview:', prompt.substring(0, 200));

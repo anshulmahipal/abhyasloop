@@ -1,10 +1,39 @@
-import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
+import { View, Text, StyleSheet, ActivityIndicator, Platform, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { syncPendingMistakes } from '../../lib/mistakeSync';
+
+function QuizTabButton(props: any) {
+  const router = useRouter();
+  return (
+    <TouchableOpacity
+      {...props}
+      style={styles.quizTabButton}
+      onPress={() => router.push('/(protected)/quiz/config')}
+      activeOpacity={0.7}
+    >
+      <View style={styles.quizTabButtonContent}>
+        <Ionicons name="rocket" size={30} color="#FFFFFF" />
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export default function ProtectedLayout() {
   const { session, loading } = useAuth();
+
+  // Sync pending mistakes on app start when user is authenticated
+  useEffect(() => {
+    if (session && !loading) {
+      // Sync in background, don't block UI
+      syncPendingMistakes().catch((err) => {
+        // Errors are already handled inside syncPendingMistakes
+        console.error('Unexpected error syncing mistakes on app start:', err);
+      });
+    }
+  }, [session, loading]);
 
   // Show loading while checking auth
   if (loading) {
@@ -30,39 +59,70 @@ export default function ProtectedLayout() {
         headerShown: false,
         tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: '#FF512F',
-        tabBarInactiveTintColor: '#999',
+        tabBarInactiveTintColor: '#A0A0A0',
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarIconStyle: styles.tabBarIcon,
+        tabBarShowLabel: true,
       }}
     >
       <Tabs.Screen
         name="dashboard"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={26} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="quiz_start"
+        options={{
+          title: '',
+          tabBarButton: (props) => <QuizTabButton {...props} />,
         }}
       />
       <Tabs.Screen
         name="leaderboard"
         options={{
           title: 'Rankings',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={26} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={26} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="quiz"
         options={{
-          tabBarButton: () => null,
+          href: null,
         }}
       />
       <Tabs.Screen
         name="result"
         options={{
-          tabBarButton: () => null,
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="new-quiz"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="profile/edit"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+          headerShown: false,
         }}
       />
     </Tabs>
@@ -85,11 +145,11 @@ const styles = StyleSheet.create({
     bottom: 20,
     left: 20,
     right: 20,
-    height: 60,
+    height: 70,
     backgroundColor: '#ffffff',
-    borderRadius: 24,
+    borderRadius: 15,
     paddingBottom: 10,
-    paddingTop: 8,
+    paddingTop: 10,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -99,8 +159,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 10,
     borderTopWidth: 0,
-    maxWidth: 500,
-    alignSelf: 'center',
+    ...(Platform.OS === 'web' && {
+      maxWidth: 500,
+      alignSelf: 'center',
+    }),
+    flexDirection: 'row',
+    justifyContent: 'space-around',
   },
   tabBarLabel: {
     fontSize: 12,
@@ -109,5 +173,26 @@ const styles = StyleSheet.create({
   },
   tabBarIcon: {
     marginTop: 4,
+  },
+  quizTabButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FF512F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    top: -20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  quizTabButtonContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

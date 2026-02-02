@@ -7,7 +7,10 @@ import {
   ActivityIndicator,
   Image,
   Animated,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
@@ -411,75 +414,85 @@ export default function LeaderboardPage() {
 
   const listData = leaderboard.slice(3);
   const promotionHint = currentUserRank ? getPromotionHint(currentUserRank) : null;
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
 
   return (
-    <LinearGradient
-      colors={['#2D1B69', '#000000']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0, y: 1 }}
-      style={styles.container}
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Wall of Fame</Text>
-        <Text style={styles.headerSubtitle}>Compete for league supremacy</Text>
-      </View>
-
-      {renderPodium()}
-
-      {leaderboard.length > 3 && (
-        <View style={styles.listHeader}>
-          <Text style={styles.listHeaderText}>Rankings</Text>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <LinearGradient
+        colors={['#2D1B69', '#000000']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.container}
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Wall of Fame</Text>
+          <Text style={styles.headerSubtitle}>Compete for league supremacy</Text>
         </View>
-      )}
 
-      <FlatList
-        data={listData}
-        renderItem={renderListItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={renderEmptyState}
-        showsVerticalScrollIndicator={false}
-      />
+        {renderPodium()}
 
-      {/* Sticky Footer - Current User Rank */}
-      {currentUserRank && currentUserData && (
-        <View style={styles.footer}>
-          <View style={styles.footerGlass}>
-            <View style={styles.footerContent}>
-              <View style={styles.footerRank}>
-                <Text style={styles.footerRankText}>#{currentUserRank}</Text>
-              </View>
-              {renderAvatar(currentUserData.avatar_url, currentUserData.full_name, 45)}
-              <View style={styles.footerInfo}>
-                <View style={styles.footerNameRow}>
-                  <Text style={styles.footerName}>{currentUserData.full_name}</Text>
-                  <View style={[styles.leagueBadgeSmall, { backgroundColor: getLeague(currentUserRank).color + '30' }]}>
-                    <Text style={styles.leagueBadgeEmojiSmall}>{getLeague(currentUserRank).emoji}</Text>
-                  </View>
+        {leaderboard.length > 3 && (
+          <View style={styles.listHeader}>
+            <Text style={styles.listHeaderText}>Rankings</Text>
+          </View>
+        )}
+
+        <FlatList
+          data={listData}
+          renderItem={renderListItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={renderEmptyState}
+          showsVerticalScrollIndicator={false}
+          style={styles.list}
+        />
+
+        {/* Sticky Footer - Current User Rank */}
+        {currentUserRank && currentUserData && (
+          <View style={styles.footer}>
+            <View style={styles.footerGlass}>
+              <View style={styles.footerContent}>
+                <View style={styles.footerRank}>
+                  <Text style={styles.footerRankText}>#{currentUserRank}</Text>
                 </View>
-                <View style={styles.footerBottomRow}>
-                  <Text style={styles.footerCoins}>🪙 {currentUserData.coins.toLocaleString()}</Text>
-                  {promotionHint && (
-                    <Text style={styles.promotionHint}>{promotionHint}</Text>
-                  )}
+                {renderAvatar(currentUserData.avatar_url, currentUserData.full_name, 45)}
+                <View style={styles.footerInfo}>
+                  <View style={styles.footerNameRow}>
+                    <Text style={styles.footerName}>{currentUserData.full_name}</Text>
+                    <View style={[styles.leagueBadgeSmall, { backgroundColor: getLeague(currentUserRank).color + '30' }]}>
+                      <Text style={styles.leagueBadgeEmojiSmall}>{getLeague(currentUserRank).emoji}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.footerBottomRow}>
+                    <Text style={styles.footerCoins}>🪙 {currentUserData.coins.toLocaleString()}</Text>
+                    {promotionHint && (
+                      <Text style={styles.promotionHint}>{promotionHint}</Text>
+                    )}
+                  </View>
                 </View>
               </View>
             </View>
           </View>
-        </View>
-      )}
-    </LinearGradient>
+        )}
+      </LinearGradient>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#2D1B69',
+  },
   container: {
     flex: 1,
   },
   header: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'web' ? 20 : 20,
     paddingBottom: 24,
     paddingHorizontal: 20,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 32,
@@ -609,9 +622,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
   },
+  list: {
+    flex: 1,
+    zIndex: 1,
+  },
   listContent: {
-    paddingBottom: 120,
-    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'web' ? 120 : 180, // Extra padding for tab bar on mobile
+    paddingHorizontal: 20,
+    paddingTop: 8,
   },
   listItem: {
     flexDirection: 'row',
@@ -621,8 +639,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 16,
     marginBottom: 12,
+    marginHorizontal: 4,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   listItemCurrent: {
     backgroundColor: 'rgba(255, 107, 53, 0.2)',
@@ -688,12 +715,13 @@ const styles = StyleSheet.create({
   },
   footer: {
     position: 'absolute',
-    bottom: 0,
+    bottom: Platform.OS === 'web' ? 0 : 80, // Account for tab bar on mobile
     left: 0,
     right: 0,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingBottom: 90,
+    paddingBottom: Platform.OS === 'web' ? 16 : 16,
+    zIndex: 20, // Always on top
   },
   footerGlass: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',

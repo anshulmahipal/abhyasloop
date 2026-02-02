@@ -18,13 +18,15 @@ export interface GenerateQuizResponse {
  * @param topic - The topic for the quiz (e.g., "Algebra", "Indian History")
  * @param difficulty - The difficulty level: "easy", "medium", or "hard"
  * @param userFocus - The user's exam focus (e.g., "SSC CGL", "Banking", "UPSC")
+ * @param questionCount - Number of questions to generate (default: 5)
  * @returns Promise with quiz data including questions and quiz ID
  * @throws Error with friendly message if the function fails
  */
 export async function generateQuiz(
   topic: string,
   difficulty: 'easy' | 'medium' | 'hard',
-  userFocus: string
+  userFocus: string,
+  questionCount: number = 5
 ): Promise<GenerateQuizResponse> {
   // Validate inputs
   if (!topic || typeof topic !== 'string' || topic.trim() === '') {
@@ -39,12 +41,17 @@ export async function generateQuiz(
     throw new Error('userFocus is required and must be a non-empty string');
   }
 
+  // Validate questionCount
+  const validCounts = [5, 10, 15, 20];
+  const count = validCounts.includes(questionCount) ? questionCount : 5;
+
   try {
     const { data, error } = await supabase.functions.invoke('generate-quiz', {
       body: {
         topic: topic.trim(),
         difficulty: difficulty.toLowerCase(),
         userFocus: userFocus.trim(),
+        questionCount: count,
       },
     });
 

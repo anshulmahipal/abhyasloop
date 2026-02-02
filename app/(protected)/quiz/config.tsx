@@ -1,23 +1,37 @@
 import { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../contexts/AuthContext';
 import { generateQuiz } from '../../../lib/api';
 
-const SMART_TOPICS: Record<string, string[]> = {
-  SSC: ['Trigonometry', 'Geometry', 'Algebra', 'GK'],
-  Banking: ['Data Interpretation', 'Simplification', 'Banking Awareness'],
+const SUBJECTS = ['Quant', 'Reasoning', 'English', 'Current Affairs'];
+
+const TRENDING_TOPICS: Record<string, string[]> = {
+  Quant: ['Data Interpretation', 'Simplification', 'Number Series', 'Quadratic Eq'],
+  Reasoning: ['Puzzles', 'Syllogism', 'Blood Relations'],
+  English: ['Reading Comprehension', 'Cloze Test', 'Error Spotting'],
+  'Current Affairs': ['National News', 'International Affairs', 'Science & Tech', 'Sports'],
 };
 
+const QUESTION_COUNTS = ['5', '10', '15', '20'];
+
 const DIFFICULTY_LEVELS: Array<'easy' | 'medium' | 'hard'> = ['easy', 'medium', 'hard'];
+const DIFFICULTY_LABELS = {
+  easy: '🟢 Warm Up',
+  medium: '🟡 Standard',
+  hard: '🔥 Hell Mode',
+};
 
 export default function QuizConfigPage() {
   const { profile } = useAuth();
   const router = useRouter();
+  const [selectedSubject, setSelectedSubject] = useState<string>('Quant');
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [questionCount, setQuestionCount] = useState<string>('10');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
   const buttonDisableTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -25,28 +39,8 @@ export default function QuizConfigPage() {
   // Get current_focus from user profile, default to 'General Knowledge' if not set
   const currentFocus = profile?.current_focus || 'General Knowledge';
   
-  // Get smart topics based on focus
-  const getSmartTopics = (): string[] => {
-    if (!currentFocus || currentFocus === 'General Knowledge') {
-      // Default topics if no focus is set
-      return ['General Knowledge', 'Mathematics', 'English', 'Reasoning'];
-    }
-    
-    // Check if focus contains 'SSC' (case-insensitive)
-    if (currentFocus.toUpperCase().includes('SSC')) {
-      return SMART_TOPICS.SSC;
-    }
-    
-    // Check if focus contains 'Banking' (case-insensitive)
-    if (currentFocus.toUpperCase().includes('BANKING') || currentFocus.toUpperCase().includes('BANK')) {
-      return SMART_TOPICS.Banking;
-    }
-    
-    // Default topics for other exam types
-    return ['General Knowledge', 'Mathematics', 'English', 'Reasoning'];
-  };
-
-  const topics = getSmartTopics();
+  // Get trending topics based on selected subject
+  const trendingTopics = TRENDING_TOPICS[selectedSubject] || [];
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -57,7 +51,13 @@ export default function QuizConfigPage() {
     };
   }, []);
 
-  const handleChipPress = (topic: string) => {
+  const handleSubjectPress = (subject: string) => {
+    setSelectedSubject(subject);
+    // Clear selected topic when subject changes
+    setSelectedTopic('');
+  };
+
+  const handleTopicPress = (topic: string) => {
     setSelectedTopic(topic);
   };
 
@@ -80,8 +80,8 @@ export default function QuizConfigPage() {
     try {
       setIsGenerating(true);
       
-      // Generate quiz with current_focus from profile, topic, and difficulty
-      const response = await generateQuiz(selectedTopic, selectedDifficulty, currentFocus);
+      // Generate quiz with current_focus from profile, topic, difficulty, and question count
+      const response = await generateQuiz(selectedTopic, selectedDifficulty, currentFocus, parseInt(questionCount, 10));
       
       // Navigate to quiz page with generated quiz ID and params
       router.push({
@@ -136,28 +136,17 @@ export default function QuizConfigPage() {
   };
 
   return (
-    <View style={styles.screenWrapper}>
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        {/* Gradient Header */}
-        <LinearGradient
-          colors={['#FF6B35', '#F44336']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.screenWrapper}>
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>New Mission</Text>
-            <View style={styles.contextPill}>
-              <Text style={styles.contextPillText}>
-                Targeting: {currentFocus}
-              </Text>
-            </View>
+          {/* Simple Title Bar */}
+          <View style={styles.titleBar}>
+            <Text style={styles.titleBarText}>Quiz Configuration</Text>
           </View>
-        </LinearGradient>
 
         <ScrollView 
           style={styles.scrollView} 
@@ -166,119 +155,188 @@ export default function QuizConfigPage() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.container}>
-
-          {/* Topic Section Card */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Topic</Text>
-            <View style={styles.inputContainer}>
-              <Ionicons name="search" size={20} color="#666" style={styles.inputIcon} />
-              <TextInput
-                style={styles.textInput}
-                placeholder="What are we studying?"
-                placeholderTextColor="#999"
-                value={selectedTopic}
-                onChangeText={setSelectedTopic}
-                autoCapitalize="words"
-              />
-            </View>
-            
-            {/* Quick Chips */}
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              style={styles.chipsContainer}
-              contentContainerStyle={styles.chipsContent}
-            >
-              {topics.map((topic) => (
-                <TouchableOpacity
-                  key={topic}
-                  style={[
-                    styles.chip,
-                    selectedTopic.toLowerCase() === topic.toLowerCase() && styles.chipSelected,
-                  ]}
-                  onPress={() => handleChipPress(topic)}
+            {/* Main Settings Card */}
+            <View style={styles.mainCard}>
+              {/* Subject Selector */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Subject</Text>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.subjectContainer}
+                  contentContainerStyle={styles.subjectContent}
                 >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      selectedTopic.toLowerCase() === topic.toLowerCase() && styles.chipTextSelected,
-                    ]}
-                  >
-                    {topic}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Difficulty Section Card */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Intensity Level</Text>
-            <View style={styles.difficultyToggle}>
-              {DIFFICULTY_LEVELS.map((difficulty) => {
-                const isSelected = selectedDifficulty === difficulty;
-                const color = getDifficultyColor(difficulty);
-                
-                return (
-                  <TouchableOpacity
-                    key={difficulty}
-                    style={[
-                      styles.difficultySegment,
-                      isSelected && styles.difficultySegmentActive,
-                      isSelected && { backgroundColor: '#ffffff', shadowColor: color },
-                    ]}
-                    onPress={() => setSelectedDifficulty(difficulty)}
-                  >
-                    <Text
+                  {SUBJECTS.map((subject) => (
+                    <TouchableOpacity
+                      key={subject}
                       style={[
-                        styles.difficultySegmentText,
-                        isSelected && { color },
-                        !isSelected && difficulty === 'medium' && { color: '#FF8C00' }, // Darker Orange/Gold for Medium
-                        !isSelected && difficulty !== 'medium' && { color: '#666' },
+                        styles.subjectPill,
+                        selectedSubject === subject && styles.subjectPillSelected,
                       ]}
+                      onPress={() => handleSubjectPress(subject)}
                     >
-                      {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
-                    </Text>
-                    {isSelected && (
-                      <View style={[styles.difficultyIndicator, { backgroundColor: color }]} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.subjectPillText,
+                          selectedSubject === subject && styles.subjectPillTextSelected,
+                        ]}
+                      >
+                        {subject}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Topic Input Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Topic</Text>
+                <View style={styles.inputContainer}>
+                  <Ionicons name="search" size={20} color="#666" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="What are we studying?"
+                    placeholderTextColor="#999"
+                    value={selectedTopic}
+                    onChangeText={setSelectedTopic}
+                    autoCapitalize="words"
+                  />
+                </View>
+                
+                {/* Trending Topics */}
+                <Text style={styles.trendingTitle}>Trending Topics</Text>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.topicsContainer}
+                  contentContainerStyle={styles.topicsContent}
+                >
+                  {trendingTopics.map((topic) => (
+                    <TouchableOpacity
+                      key={topic}
+                      style={[
+                        styles.topicTag,
+                        selectedTopic.toLowerCase() === topic.toLowerCase() && styles.topicTagSelected,
+                      ]}
+                      onPress={() => handleTopicPress(topic)}
+                    >
+                      <Text
+                        style={[
+                          styles.topicTagText,
+                          selectedTopic.toLowerCase() === topic.toLowerCase() && styles.topicTagTextSelected,
+                        ]}
+                      >
+                        {topic}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Question Count Control */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Number of Questions</Text>
+                <View style={styles.questionCountToggle}>
+                  {QUESTION_COUNTS.map((count) => {
+                    const isSelected = questionCount === count;
+                    return (
+                      <TouchableOpacity
+                        key={count}
+                        style={[
+                          styles.questionCountSegment,
+                          isSelected && styles.questionCountSegmentActive,
+                        ]}
+                        onPress={() => setQuestionCount(count)}
+                      >
+                        <Text
+                          style={[
+                            styles.questionCountSegmentText,
+                            isSelected && styles.questionCountSegmentTextActive,
+                          ]}
+                        >
+                          {count}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Challenge Level Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Challenge Level</Text>
+                <View style={styles.difficultyToggle}>
+                  {DIFFICULTY_LEVELS.map((difficulty) => {
+                    const isSelected = selectedDifficulty === difficulty;
+                    const color = getDifficultyColor(difficulty);
+                    
+                    return (
+                      <TouchableOpacity
+                        key={difficulty}
+                        style={[
+                          styles.difficultySegment,
+                          isSelected && styles.difficultySegmentActive,
+                          isSelected && { backgroundColor: '#ffffff', shadowColor: color },
+                        ]}
+                        onPress={() => setSelectedDifficulty(difficulty)}
+                      >
+                        <Text
+                          style={[
+                            styles.difficultySegmentText,
+                            isSelected && { color },
+                            !isSelected && { color: '#666' },
+                          ]}
+                        >
+                          {DIFFICULTY_LABELS[difficulty]}
+                        </Text>
+                        {isSelected && (
+                          <View style={[styles.difficultyIndicator, { backgroundColor: color }]} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
+            {/* Generate Quiz Button - Inside ScrollView */}
+            <View style={styles.launchButtonContainer}>
+              <TouchableOpacity
+                style={styles.launchButton}
+                onPress={handleStartQuiz}
+                disabled={!selectedTopic || selectedTopic.trim() === '' || isGenerating || isButtonDisabled}
+                activeOpacity={0.9}
+              >
+                {isGenerating ? (
+                  <LinearGradient
+                    colors={['#FF6B35', '#F44336']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.launchButtonGradient}
+                  >
+                    <ActivityIndicator color="#ffffff" size="large" />
+                    <Text style={[styles.launchButtonText, { marginTop: 8 }]}>Generating...</Text>
+                  </LinearGradient>
+                ) : (
+                  <LinearGradient
+                    colors={['#FF6B35', '#F44336']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[
+                      styles.launchButtonGradient,
+                      (!selectedTopic || selectedTopic.trim() === '' || isButtonDisabled) && styles.launchButtonGradientDisabled,
+                    ]}
+                  >
+                    <Text style={styles.launchButtonText}>GENERATE QUIZ 🚀</Text>
+                  </LinearGradient>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </ScrollView>
-
-      {/* Launch Button - Floating */}
-      <View style={styles.launchButtonContainer}>
-        <TouchableOpacity
-          style={styles.launchButton}
-          onPress={handleStartQuiz}
-          disabled={!selectedTopic || selectedTopic.trim() === '' || isGenerating || isButtonDisabled}
-          activeOpacity={0.9}
-        >
-          {isGenerating ? (
-            <View style={styles.launchButtonGradient}>
-              <ActivityIndicator color="#ffffff" />
-            </View>
-          ) : (
-            <LinearGradient
-              colors={['#FF6B35', '#F44336']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[
-                styles.launchButtonGradient,
-                (!selectedTopic || selectedTopic.trim() === '' || isButtonDisabled) && styles.launchButtonGradientDisabled,
-              ]}
-            >
-              <Text style={styles.launchButtonText}>GENERATE QUIZ 🚀</Text>
-            </LinearGradient>
-          )}
-        </TouchableOpacity>
-      </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
+    </SafeAreaView>
   );
 }
 
@@ -290,79 +348,86 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  // Gradient Header
-  headerGradient: {
-    width: '100%',
-    height: 200, // Fixed height instead of percentage
-    justifyContent: 'flex-end',
-    paddingBottom: 40,
-    paddingTop: Platform.OS === 'ios' ? 50 : 20, // Safe area padding
-    zIndex: 1,
-  },
-  headerContent: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 16,
-    letterSpacing: 1,
-  },
   scrollView: {
     flex: 1,
-    zIndex: 2, // Cards sit on top of header
   },
   scrollContent: {
-    paddingBottom: 140, // Space for floating launch button
+    paddingBottom: 150, // Space to clear floating tab bar
+    paddingTop: 20,
   },
   container: {
-    marginTop: -60, // Overlap effect
     padding: 24,
-    paddingTop: 0,
     maxWidth: 500, // Mobile app card width on web
     alignSelf: 'center',
     width: '90%',
-    zIndex: 2,
   },
-  // Context Pill (inside header)
-  contextPill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+  // Simple Title Bar
+  titleBar: {
+    backgroundColor: '#FF6B35',
+    paddingTop: Platform.OS === 'web' ? 20 : 12,
+    paddingBottom: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    zIndex: 10,
   },
-  contextPillText: {
+  titleBarText: {
+    fontSize: 20,
+    fontWeight: '700',
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600',
     letterSpacing: 0.5,
   },
-  // Card Styles (overlapping header)
-  card: {
+  // Main Card
+  mainCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    padding: 24,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  cardTitle: {
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1a1a1a',
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  // Topic Input (Neumorphic)
+  // Subject Pills
+  subjectContainer: {
+    marginTop: 8,
+  },
+  subjectContent: {
+    paddingRight: 20,
+  },
+  subjectPill: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  subjectPillSelected: {
+    backgroundColor: '#FF512F',
+    borderColor: '#FF512F',
+  },
+  subjectPillText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  subjectPillTextSelected: {
+    color: '#ffffff',
+  },
+  // Topic Input
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -370,16 +435,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-    // Inner shadow effect (neumorphic)
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e8e8e8',
   },
@@ -392,14 +448,21 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     fontWeight: '500',
   },
-  // Chips
-  chipsContainer: {
+  trendingTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  // Trending Topics
+  topicsContainer: {
     marginTop: 8,
   },
-  chipsContent: {
+  topicsContent: {
     paddingRight: 20,
   },
-  chip: {
+  topicTag: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
@@ -408,17 +471,53 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
-  chipSelected: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+  topicTagSelected: {
+    backgroundColor: '#FF512F',
+    borderColor: '#FF512F',
   },
-  chipText: {
+  topicTagText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#666',
   },
-  chipTextSelected: {
+  topicTagTextSelected: {
     color: '#ffffff',
+  },
+  // Question Count Toggle
+  questionCountToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#e8e8e8',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  questionCountSegment: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  questionCountSegmentActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#FF512F',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  questionCountSegmentText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  questionCountSegmentTextActive: {
+    color: '#FF512F',
+    fontWeight: '700',
   },
   // Difficulty Toggle
   difficultyToggle: {
@@ -449,7 +548,7 @@ const styles = StyleSheet.create({
   difficultySegmentText: {
     fontSize: 15,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   difficultyIndicator: {
     position: 'absolute',
@@ -458,19 +557,14 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
   },
-  // Launch Button - Floating
+  // Launch Button - Inside ScrollView
   launchButtonContainer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10, // Safe area padding for iPhone
+    marginTop: 20,
     maxWidth: 500, // Match card width
     alignSelf: 'center',
-    width: '90%',
-    zIndex: 3,
+    width: '100%',
   },
   launchButton: {
     width: '100%',

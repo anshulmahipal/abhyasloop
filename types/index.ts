@@ -1,5 +1,5 @@
 export interface Question {
-  id: number;
+  id: string | number; // UUID string from database, or number for compatibility
   question: string;
   options: string[];
   correctIndex: number;

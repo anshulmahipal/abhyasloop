@@ -68,8 +68,8 @@ export default function ResultPage() {
         });
       } catch (err) {
         logger.error('Failed to load result data', err);
-        const errorMessage = err instanceof Error 
-          ? err.message 
+        const errorMessage = err instanceof Error
+          ? err.message
           : 'Failed to load quiz results. Please try again.';
         setError(errorMessage);
       } finally {
@@ -114,7 +114,7 @@ export default function ResultPage() {
   }
 
   const percentage = (attemptData.score / attemptData.total_questions) * 100;
-  
+
   // Determine message based on percentage
   let message = '';
   if (percentage > 80) {
@@ -135,7 +135,7 @@ export default function ResultPage() {
           <Text style={styles.scoreDisplay}>
             {attemptData.score} / {attemptData.total_questions}
           </Text>
-          
+
           {/* Percentage */}
           <Text style={styles.percentage}>{Math.round(percentage)}%</Text>
 
@@ -156,8 +156,8 @@ export default function ResultPage() {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Difficulty:</Text>
               <Text style={styles.detailValue}>
-                {attemptData.generated_quizzes.difficulty.charAt(0).toUpperCase() + 
-                 attemptData.generated_quizzes.difficulty.slice(1)}
+                {attemptData.generated_quizzes.difficulty.charAt(0).toUpperCase() +
+                  attemptData.generated_quizzes.difficulty.slice(1)}
               </Text>
             </View>
           </View>

@@ -4,17 +4,11 @@ export default function QuizLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: {
-          backgroundColor: '#f4511e',
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
+        headerShown: false, // Hide headers - we use custom headers in components
       }}
     >
-      <Stack.Screen name="config" options={{ title: 'Quiz Configuration' }} />
-      <Stack.Screen name="[id]" options={{ title: 'Quiz' }} />
+      <Stack.Screen name="config" options={{ headerShown: false }} />
+      <Stack.Screen name="[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }

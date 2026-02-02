@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Platform, Modal, Alert, Animated, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Platform, Modal, Alert, Animated, Pressable, useWindowDimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { GoalSelector } from '../../components/GoalSelector';
+import { syncPendingMistakes } from '../../lib/mistakeSync';
 
 interface QuizAttemptWithQuiz {
   id: string;
@@ -73,11 +75,11 @@ export default function DashboardPage() {
     averageScore: 0,
     bestStreak: 0,
   });
+  const [mistakesCount, setMistakesCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUpdatingFocus, setIsUpdatingFocus] = useState(false);
-  const [buttonScale] = useState(new Animated.Value(1));
   const [isGoalModalVisible, setIsGoalModalVisible] = useState(false);
   
   // Optimistic state for UI updates - initialize with null, will be set in useEffect
@@ -159,6 +161,16 @@ export default function DashboardPage() {
           bestStreak: profile?.current_streak || 0,
         });
       }
+
+      // Fetch mistakes count
+      const { count: mistakesCount, error: mistakesError } = await supabase
+        .from('mistakes')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      if (!mistakesError && mistakesCount !== null) {
+        setMistakesCount(mistakesCount);
+      }
     } catch (err) {
       console.error('Failed to fetch user activity:', err);
       setError(err instanceof Error ? err.message : 'Failed to load activity');
@@ -172,6 +184,17 @@ export default function DashboardPage() {
       fetchUserActivity();
     }
   }, [user, authLoading, profile?.current_streak]);
+
+  // Background sync: Sync pending mistakes on mount
+  // This ensures that if a user was offline yesterday, their data uploads the moment they open the app today
+  useEffect(() => {
+    if (!authLoading && user) {
+      syncPendingMistakes().catch((err) => {
+        // Errors are already handled inside syncPendingMistakes
+        console.error('Unexpected error syncing mistakes on dashboard mount:', err);
+      });
+    }
+  }, [authLoading, user]);
 
   // Set default focus if current_focus is null and we have target exams
   useEffect(() => {
@@ -319,35 +342,16 @@ export default function DashboardPage() {
 
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'User';
   const hasTargetExams = targetExams.length > 0;
-
-  // Pulse animation for streak icon when streak > 3
   const streak = profile?.current_streak || 0;
-  const shouldPulse = streak > 3;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const coins = profile?.coins || 0;
 
-  useEffect(() => {
-    if (shouldPulse) {
-      const pulse = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulse.start();
-      return () => pulse.stop();
-    } else {
-      // Reset animation when streak <= 3
-      pulseAnim.setValue(1);
-    }
-  }, [shouldPulse, pulseAnim]);
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
 
   const renderExamFocusSwitcher = () => {
     const displayFocus = optimisticFocus || defaultFocus || 'Select an exam';
@@ -454,101 +458,88 @@ export default function DashboardPage() {
     );
   };
 
-  const renderHeroSection = () => {
-    const coins = profile?.coins || 0;
-    const currentStreak = profile?.current_streak || 0;
-    const nextMilestone = 7; // 7-day milestone
-    const streakProgress = Math.min((currentStreak / nextMilestone) * 100, 100);
-
+  const renderHeader = () => {
     return (
-      <View style={styles.heroCard}>
-        {/* Top Row: Hello + Profile Pic */}
-        <View style={styles.heroTopRow}>
-          <Text style={styles.heroGreeting}>Hello, {displayName}</Text>
-          {profile?.avatar_url ? (
-            <View style={styles.profilePicContainer}>
-              <Text style={styles.profilePicText}>
-                {displayName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.profilePicContainer}>
-              <Ionicons name="person" size={24} color="#007AFF" />
-            </View>
-          )}
-        </View>
+      <View style={styles.headerSection}>
+        <Text style={styles.headerGreeting}>
+          {getGreeting()}, {displayName}!
+        </Text>
+        <Text style={styles.headerSubtext}>Ready to learn something new?</Text>
+      </View>
+    );
+  };
 
-        {/* Middle: Focus Pill */}
-        <View style={styles.heroFocusPill}>
-          <Text style={styles.heroFocusText}>Focus: {optimisticFocus || currentFocus || 'General Knowledge'}</Text>
-        </View>
+  const renderHeroWidgets = () => {
+    return (
+      <View style={styles.heroWidgetsRow}>
+        {/* Streak Card */}
+        <TouchableOpacity style={styles.heroWidgetCard} activeOpacity={0.9}>
+          <LinearGradient
+            colors={['#FF6B35', '#F7931E']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroWidgetGradient}
+          >
+            <Text style={styles.heroWidgetIcon}>🔥</Text>
+            <Text style={styles.heroWidgetTitle}>Day Streak</Text>
+            <Text style={styles.heroWidgetValue}>{streak}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
-        {/* Bottom Row: Streak with Progress */}
-        <View style={styles.heroStreakSection}>
-          <View style={styles.heroStreakRow}>
-            <Animated.Text
-              style={[
-                styles.heroStreakIcon,
-                shouldPulse && { transform: [{ scale: pulseAnim }] },
-              ]}
-            >
-              🔥
-            </Animated.Text>
-            <Text style={styles.heroStreakText}>
-              {currentStreak} Day Streak
-            </Text>
+        {/* Mistakes Card */}
+        <TouchableOpacity 
+          style={styles.heroWidgetCard} 
+          activeOpacity={0.9}
+          onPress={() => router.push('/(protected)/quiz/mistakes')}
+        >
+          <LinearGradient
+            colors={['#667EEA', '#764BA2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroWidgetGradient}
+          >
+            <Text style={styles.heroWidgetIcon}>🧠</Text>
+            <Text style={styles.heroWidgetTitle}>Mistakes</Text>
+            <Text style={styles.heroWidgetValue}>{mistakesCount}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderPerformanceSection = () => {
+    return (
+      <View style={styles.performanceSection}>
+        <Text style={styles.sectionTitle}>Performance</Text>
+        <View style={styles.performanceRow}>
+          <View style={styles.performanceStat}>
+            <Text style={styles.performanceValue}>{stats.totalQuizzes}</Text>
+            <Text style={styles.performanceLabel}>Total Quizzes</Text>
           </View>
-          <View style={styles.progressBarContainer}>
-            <View style={styles.progressBarBackground}>
-              <View 
-                style={[
-                  styles.progressBarFill,
-                  { width: `${streakProgress}%` }
-                ]} 
-              />
-            </View>
-            <Text style={styles.progressBarText}>
-              {currentStreak}/{nextMilestone} days
-            </Text>
+          <View style={styles.performanceStat}>
+            <Text style={styles.performanceValue}>{stats.averageScore}%</Text>
+            <Text style={styles.performanceLabel}>Avg Accuracy</Text>
+          </View>
+          <View style={styles.performanceStat}>
+            <Text style={styles.performanceValue}>{coins.toLocaleString()}</Text>
+            <Text style={styles.performanceLabel}>Coins Earned</Text>
           </View>
         </View>
       </View>
     );
   };
 
-  const renderStatCard = (icon: string, value: string | number, label: string, iconName?: keyof typeof Ionicons.glyphMap) => {
+  const renderDailyWisdom = () => {
     return (
-      <View style={styles.statCard}>
-        <View style={styles.statIconContainer}>
-          {iconName ? (
-            <Ionicons name={iconName} size={24} color="#007AFF" />
-          ) : (
-            <Text style={styles.statIcon}>{icon}</Text>
-          )}
-        </View>
-        <Text style={styles.statValue}>{value}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
+      <View style={styles.wisdomCard}>
+        <Text style={styles.wisdomText}>
+          "Success is the sum of small efforts, repeated day in and day out."
+        </Text>
       </View>
     );
   };
 
-  const coins = profile?.coins || 0;
-  const mistakesPending = 0; // Mock count
 
-  const handleButtonPress = () => {
-    Animated.sequence([
-      Animated.timing(buttonScale, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(buttonScale, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
 
   const getScoreColor = (score: number, total: number) => {
     const percentage = (score / total) * 100;
@@ -605,209 +596,114 @@ export default function DashboardPage() {
     );
   };
 
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+
   return (
-    <View style={styles.mainContainer}>
-      {/* Header - Background Layer */}
-      <LinearGradient
-        colors={['#6a11cb', '#2575fc']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.headerBackground}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerTopRow}>
-            <Text style={styles.headerTitle}>New Mission</Text>
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={handleLogout}
-              activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="log-out-outline" size={24} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.targetingPill}>
-            <Text style={styles.targetingPillText}>
-              Targeting: {optimisticFocus || currentFocus || 'General Knowledge'}
-            </Text>
-          </View>
-        </View>
-      </LinearGradient>
-
-      {/* ScrollView - Foreground Layer */}
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.contentWrapper}>
-          {/* Hero Section */}
-          {renderHeroSection()}
-
-          {/* Exam Focus Switcher */}
-          {renderExamFocusSwitcher()}
-
-          {/* Stats Grid - 2 columns */}
-          <View style={styles.statsGrid}>
-            {renderStatCard('🪙', coins, 'Coins', 'wallet')}
-            {renderStatCard('🎯', `${stats.averageScore}%`, 'Average Score', 'trophy')}
-            {renderStatCard('📊', stats.totalQuizzes, 'Total Quizzes', 'document-text')}
-            {renderStatCard('⚠️', mistakesPending, 'Mistakes Pending', 'alert-circle')}
-          </View>
-
-          {/* Recent Activity */}
-          <Text style={styles.sectionTitle}>Recent History</Text>
-          {isLoading ? (
-            <SkeletonLoader />
-          ) : error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : attempts.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No quizzes completed yet</Text>
-              <Text style={styles.emptyStateSubtext}>Start your first quiz to see your activity here!</Text>
-            </View>
-          ) : (
-            <View style={styles.activityList}>
-              {attempts.map((attempt) => {
-                const percentage = (attempt.score / attempt.total_questions) * 100;
-                const scoreColor = getScoreColor(attempt.score, attempt.total_questions);
-                
-                return (
-                  <View key={attempt.id} style={styles.activityItem}>
-                    <View style={[styles.activityDot, { backgroundColor: scoreColor }]} />
-                    <View style={styles.activityContent}>
-                      <Text style={styles.activityTopic}>
-                        {attempt.generated_quizzes?.topic || 'Unknown Topic'}
-                      </Text>
-                      <Text style={styles.activityDate}>
-                        {formatDate(attempt.completed_at)}
-                      </Text>
-                    </View>
-                    <View style={[styles.scoreBadge, { backgroundColor: scoreColor }]}>
-                      <Text style={styles.scoreBadgeText}>
-                        {attempt.score}/{attempt.total_questions}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Floating Action Button - Fixed Footer */}
-      <Link href="/(protected)/quiz/config" asChild>
-        <Pressable
-          onPress={handleButtonPress}
-          style={({ pressed }) => [
-            styles.floatingButton,
-            {
-              transform: [{ scale: pressed ? 0.95 : 1 }],
-            },
-          ]}
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.mainContainer}>
+        {/* ScrollView - Foreground Layer */}
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          {({ pressed }) => (
-            <Animated.View
-              style={[
-                styles.floatingButtonInner,
-                { transform: [{ scale: buttonScale }] },
-              ]}
-            >
-              <LinearGradient
-                colors={['#FF6B35', '#F7931E']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.floatingButtonGradient}
-              >
-                <Text style={styles.floatingButtonText}>Start New Quiz</Text>
-                <Ionicons name="arrow-forward" size={20} color="#ffffff" style={{ marginLeft: 8 }} />
-              </LinearGradient>
-            </Animated.View>
-          )}
-        </Pressable>
-      </Link>
+          <View style={[styles.contentWrapper, isMobile && styles.contentWrapperMobile]}>
+            {/* Header Section */}
+            {renderHeader()}
 
-      {/* Goal Selector Modal */}
-      <GoalSelector
-        visible={isGoalModalVisible}
-        onClose={() => setIsGoalModalVisible(false)}
-        initialSelection={targetExams}
-        onSave={handleGoalSave}
-      />
-    </View>
+            {/* Hero Widgets */}
+            {renderHeroWidgets()}
+
+            {/* Performance Section */}
+            {renderPerformanceSection()}
+
+            {/* Recent Activity */}
+            <Text style={styles.sectionTitle}>Recent History</Text>
+            {isLoading ? (
+              <SkeletonLoader />
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : attempts.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No quizzes completed yet</Text>
+                <Text style={styles.emptyStateSubtext}>Start your first quiz to see your activity here!</Text>
+              </View>
+            ) : (
+              <View style={styles.activityList}>
+                {attempts.map((attempt) => {
+                  const percentage = (attempt.score / attempt.total_questions) * 100;
+                  const scoreColor = getScoreColor(attempt.score, attempt.total_questions);
+                  
+                  return (
+                    <View key={attempt.id} style={styles.activityItem}>
+                      <View style={[styles.activityDot, { backgroundColor: scoreColor }]} />
+                      <View style={styles.activityContent}>
+                        <Text style={styles.activityTopic}>
+                          {attempt.generated_quizzes?.topic || 'Unknown Topic'}
+                        </Text>
+                        <Text style={styles.activityDate}>
+                          {formatDate(attempt.completed_at)}
+                        </Text>
+                      </View>
+                      <View style={[styles.scoreBadge, { backgroundColor: scoreColor }]}>
+                        <Text style={styles.scoreBadgeText}>
+                          {attempt.score}/{attempt.total_questions}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Daily Wisdom Card */}
+            {renderDailyWisdom()}
+          </View>
+        </ScrollView>
+
+        {/* Goal Selector Modal */}
+        <GoalSelector
+          visible={isGoalModalVisible}
+          onClose={() => setIsGoalModalVisible(false)}
+          initialSelection={targetExams}
+          onSave={handleGoalSave}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F5F7FA',
+  },
   mainContainer: {
     flex: 1,
     backgroundColor: '#F5F7FA',
   },
-  // Header - Background Layer
-  headerBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 280,
-    zIndex: 1,
-  },
-  headerContent: {
-    paddingTop: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    zIndex: 2,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: 500,
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  logoutButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    zIndex: 2,
-  },
-  targetingPill: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  targetingPillText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
   scrollView: {
     flex: 1,
     backgroundColor: 'transparent',
+    zIndex: 1,
   },
   scrollContent: {
-    paddingTop: 180,
-    paddingBottom: 120,
+    paddingTop: 20,
+    paddingBottom: 100, // Extra padding for tab bar (no floating button anymore)
     alignItems: 'center',
+    minHeight: '100%',
   },
   contentWrapper: {
     width: '90%',
     maxWidth: 500,
+    paddingHorizontal: 20,
+  },
+  contentWrapperMobile: {
+    width: '100%',
+    paddingHorizontal: 20,
   },
   container: {
     flex: 1,
@@ -816,143 +712,127 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
   },
-  // Hero Section
-  heroCard: {
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
+  // Header Section
+  headerSection: {
+    marginBottom: 32,
+    alignItems: 'center',
+  },
+  headerGreeting: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  headerSubtext: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+  },
+  // Hero Widgets
+  heroWidgetsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 32,
+  },
+  heroWidgetCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  heroWidgetGradient: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 140,
+  },
+  heroWidgetIcon: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  heroWidgetTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: 8,
+    opacity: 0.9,
+  },
+  heroWidgetValue: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  // Performance Section
+  performanceSection: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 16,
+  },
+  performanceRow: {
+    flexDirection: 'row',
     backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 4,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
+    shadowRadius: 8,
     elevation: 4,
   },
-  heroTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  performanceStat: {
+    flex: 1,
     alignItems: 'center',
-    marginBottom: 16,
   },
-  heroGreeting: {
+  performanceValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#FF512F',
+    marginBottom: 4,
   },
-  profilePicContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  profilePicText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#007AFF',
-  },
-  heroFocusPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 122, 255, 0.2)',
-  },
-  heroFocusText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#007AFF',
-  },
-  heroStreakSection: {
-    width: '100%',
-  },
-  heroStreakRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  heroStreakIcon: {
-    fontSize: 32,
-    marginRight: 8,
-  },
-  heroStreakText: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a1a',
-  },
-  progressBarContainer: {
-    width: '100%',
-  },
-  progressBarBackground: {
-    height: 8,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#ffffff',
-    borderRadius: 4,
-  },
-  progressBarText: {
+  performanceLabel: {
     fontSize: 12,
     color: '#666',
-    fontWeight: '600',
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  // Stats Grid
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 32,
-  },
-  statCard: {
-    width: '48%',
-    aspectRatio: 1,
+  // Daily Wisdom
+  wisdomCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 4,
-    justifyContent: 'space-between',
+    elevation: 2,
   },
-  statIconContainer: {
-    alignSelf: 'flex-start',
-  },
-  statIcon: {
-    fontSize: 24,
-  },
-  statValue: {
-    fontSize: 30,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginTop: 'auto',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
+  wisdomText: {
+    fontSize: 15,
     color: '#666',
-    fontWeight: '500',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 16,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    lineHeight: 22,
   },
   activityList: {
     gap: 10,
@@ -960,19 +840,19 @@ const styles = StyleSheet.create({
   },
   activityItem: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   activityDot: {
     width: 12,
@@ -1003,41 +883,6 @@ const styles = StyleSheet.create({
   scoreBadgeText: {
     color: '#ffffff',
     fontSize: 14,
-    fontWeight: '700',
-  },
-  // Floating Action Button - Fixed Footer
-  floatingButton: {
-    position: 'absolute',
-    bottom: 30,
-    left: '5%',
-    right: '5%',
-    width: '90%',
-    maxWidth: 500,
-    alignSelf: 'center',
-    zIndex: 10,
-  },
-  floatingButtonInner: {
-    width: '100%',
-  },
-  floatingButtonGradient: {
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#FF6B35',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  floatingButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
     fontWeight: '700',
   },
   emptyState: {

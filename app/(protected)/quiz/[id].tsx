@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, ActivityIndicator, Alert, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useTimer } from '../../../hooks/useTimer';
 import { useQuizLogic } from '../../../hooks/useQuizLogic';
@@ -12,6 +14,7 @@ import { generateQuiz } from '../../../lib/api';
 import { Question } from '../../../types';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
+import { saveMistakes } from '../../../lib/mistakeSync';
 
 export async function generateStaticParams() {
   return [
@@ -100,7 +103,7 @@ export default function QuizPage() {
         }
         
         return {
-          id: index + 1,
+          id: q.id || (index + 1), // Preserve UUID from API, fallback to index+1 for compatibility
           question: q.question,
           options: q.options,
           correctIndex: q.correctIndex,
@@ -332,7 +335,35 @@ export default function QuizPage() {
         newStreak,
       });
 
-      // Navigate to result screen with attemptId using query string format
+      // Save mistakes using robust sync utility (runs in background, doesn't block UI)
+      // Identify mistakes: questions where userAnswers[index] !== question.correctIndex
+      const mistakesArray = questions
+        .map((q, index) => {
+          const userSelectedIndex = userAnswers[index];
+          const correctIndex = q.correctIndex;
+          
+          // Mistake if user answered incorrectly (not null and not equal to correct)
+          if (userSelectedIndex !== null && userSelectedIndex !== correctIndex) {
+            return {
+              user_id: user.id,
+              question_id: q.id,
+            };
+          }
+          return null;
+        })
+        .filter((mistake): mistake is { user_id: string; question_id: string | number } => mistake !== null);
+
+      // CRUCIAL: Do NOT await this call. Let it run in the background.
+      // Navigation happens immediately below, ensuring 100% instant UI.
+      if (mistakesArray.length > 0) {
+        saveMistakes(user.id, mistakesArray).catch((err: unknown) => {
+          // This should rarely happen as saveMistakes handles its own errors
+          console.error('Unexpected error in saveMistakes:', err);
+          logger.error('Unexpected error saving mistakes', err);
+        });
+      }
+
+      // Navigate to result screen immediately (mistakes sync in background)
       router.replace(`/(protected)/result?attemptId=${attemptData.id}`);
     } catch (err) {
       logger.error('Quiz submission error', err);
@@ -418,17 +449,70 @@ export default function QuizPage() {
     );
   }
 
+  // Helper function to parse and make error messages user-friendly
+  const getUserFriendlyError = (errorMessage: string): string => {
+    // Handle technical Edge Function errors
+    if (errorMessage.includes('non-2xx status code') || errorMessage.includes('Edge Function')) {
+      return 'Oops! Our quiz generator is having trouble right now. Please try again in a moment.';
+    }
+    
+    // Handle network errors
+    if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('timeout')) {
+      return 'Connection issue detected. Please check your internet and try again.';
+    }
+    
+    // Handle rate limit errors (should be caught earlier, but just in case)
+    if (errorMessage.includes('Please wait') || errorMessage.includes('rate limit')) {
+      return errorMessage; // Keep the friendly rate limit message
+    }
+    
+    // Return original message if it's already user-friendly, otherwise provide generic message
+    if (errorMessage.length < 100 && !errorMessage.includes('Error') && !errorMessage.includes('Failed')) {
+      return errorMessage;
+    }
+    
+    return 'Something went wrong while loading the quiz. Please try again.';
+  };
+
   if (error) {
+    const friendlyError = getUserFriendlyError(error);
+    
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorText}>⚠️ {error}</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={fetchQuiz}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <View style={[styles.container, styles.centerContent, styles.errorContainer]}>
+          <View style={styles.errorIconContainer}>
+            <Ionicons name="alert-circle" size={64} color="#FF6B35" />
+          </View>
+          <Text style={styles.errorTitle}>Unable to Load Quiz</Text>
+          <Text style={styles.errorText}>{friendlyError}</Text>
+          
+          {error.includes('non-2xx') && (
+            <View style={styles.errorDetailsContainer}>
+              <Text style={styles.errorDetailsText}>
+                Technical details: {error}
+              </Text>
+            </View>
+          )}
+          
+          <View style={styles.errorButtonContainer}>
+            <TouchableOpacity
+              style={[styles.errorButton, styles.errorButtonPrimary]}
+              onPress={fetchQuiz}
+            >
+              <Ionicons name="refresh" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+              <Text style={styles.errorButtonText}>Try Again</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.errorButton, styles.errorButtonSecondary]}
+              onPress={() => router.replace('/(protected)/dashboard')}
+            >
+              <Ionicons name="home" size={20} color="#FF6B35" style={{ marginRight: 8 }} />
+              <Text style={[styles.errorButtonText, styles.errorButtonTextSecondary]}>Back to Dashboard</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -637,11 +721,83 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  errorText: {
-    fontSize: 18,
-    color: '#d32f2f',
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  errorContainer: {
+    padding: 24,
+    maxWidth: 500,
+    width: '100%',
+  },
+  errorIconContainer: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1a1a1a',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+    paddingHorizontal: 20,
+  },
+  errorDetailsContainer: {
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 24,
+    maxHeight: 100,
+  },
+  errorDetailsText: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  errorButtonContainer: {
+    width: '100%',
+    gap: 12,
+  },
+  errorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    minHeight: 52,
+  },
+  errorButtonPrimary: {
+    backgroundColor: '#FF6B35',
+    shadowColor: '#FF6B35',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  errorButtonSecondary: {
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#FF6B35',
+  },
+  errorButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  errorButtonTextSecondary: {
+    color: '#FF6B35',
   },
   retryButton: {
     backgroundColor: '#007AFF',
