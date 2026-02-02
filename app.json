@@ -1,11 +1,25 @@
 {
   "expo": {
-    "name": "AbhyasLoop",
-    "slug": "abhyasloop",
+    "name": "QuizMaster",
+    "slug": "quizmaster",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "scheme": "abhyasloop",
+    "scheme": "quizmaster",
+    "splash": {
+      "backgroundColor": "#FF512F",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "userInterfaceStyle": "light"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FF512F"
+      },
+      "userInterfaceStyle": "light"
+    },
     "web": {
       "bundler": "metro",
       "output": "static"

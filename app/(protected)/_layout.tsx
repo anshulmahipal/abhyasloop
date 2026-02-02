@@ -100,6 +100,15 @@ export default function ProtectedLayout() {
         }}
       />
       <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={26} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="quiz"
         options={{
           href: null,
@@ -122,6 +131,13 @@ export default function ProtectedLayout() {
         options={{
           href: null,
           tabBarStyle: { display: 'none' },
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="profile/wallet"
+        options={{
+          href: null,
           headerShown: false,
         }}
       />

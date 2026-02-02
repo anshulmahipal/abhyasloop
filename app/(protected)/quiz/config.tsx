@@ -298,42 +298,42 @@ export default function QuizConfigPage() {
                 </View>
               </View>
             </View>
-
-            {/* Generate Quiz Button - Inside ScrollView */}
-            <View style={styles.launchButtonContainer}>
-              <TouchableOpacity
-                style={styles.launchButton}
-                onPress={handleStartQuiz}
-                disabled={!selectedTopic || selectedTopic.trim() === '' || isGenerating || isButtonDisabled}
-                activeOpacity={0.9}
-              >
-                {isGenerating ? (
-                  <LinearGradient
-                    colors={['#FF6B35', '#F44336']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.launchButtonGradient}
-                  >
-                    <ActivityIndicator color="#ffffff" size="large" />
-                    <Text style={[styles.launchButtonText, { marginTop: 8 }]}>Generating...</Text>
-                  </LinearGradient>
-                ) : (
-                  <LinearGradient
-                    colors={['#FF6B35', '#F44336']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[
-                      styles.launchButtonGradient,
-                      (!selectedTopic || selectedTopic.trim() === '' || isButtonDisabled) && styles.launchButtonGradientDisabled,
-                    ]}
-                  >
-                    <Text style={styles.launchButtonText}>GENERATE QUIZ 🚀</Text>
-                  </LinearGradient>
-                )}
-              </TouchableOpacity>
-            </View>
           </View>
         </ScrollView>
+
+        {/* Generate Quiz Button - Outside ScrollView, Absolutely Positioned */}
+        <View style={styles.launchButtonContainer}>
+          <TouchableOpacity
+            style={styles.launchButton}
+            onPress={handleStartQuiz}
+            disabled={!selectedTopic || selectedTopic.trim() === '' || isGenerating || isButtonDisabled}
+            activeOpacity={0.9}
+          >
+            {isGenerating ? (
+              <LinearGradient
+                colors={['#FF6B35', '#F44336']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.launchButtonGradient}
+              >
+                <ActivityIndicator color="#ffffff" size="large" />
+                <Text style={[styles.launchButtonText, { marginTop: 8 }]}>Generating...</Text>
+              </LinearGradient>
+            ) : (
+              <LinearGradient
+                colors={['#FF6B35', '#F44336']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[
+                  styles.launchButtonGradient,
+                  (!selectedTopic || selectedTopic.trim() === '' || isButtonDisabled) && styles.launchButtonGradientDisabled,
+                ]}
+              >
+                <Text style={styles.launchButtonText}>GENERATE QUIZ 🚀</Text>
+              </LinearGradient>
+            )}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </View>
     </SafeAreaView>
@@ -352,8 +352,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 150, // Space to clear floating tab bar
     paddingTop: 20,
+    paddingBottom: 150,
   },
   container: {
     padding: 24,
@@ -557,11 +557,14 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
   },
-  // Launch Button - Inside ScrollView
+  // Launch Button - Outside ScrollView, Absolutely Positioned
   launchButtonContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    zIndex: 100,
     alignItems: 'center',
-    paddingHorizontal: 24,
-    marginTop: 20,
     maxWidth: 500, // Match card width
     alignSelf: 'center',
     width: '100%',

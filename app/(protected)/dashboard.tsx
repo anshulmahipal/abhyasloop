@@ -81,6 +81,8 @@ export default function DashboardPage() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUpdatingFocus, setIsUpdatingFocus] = useState(false);
   const [isGoalModalVisible, setIsGoalModalVisible] = useState(false);
+  const [quote, setQuote] = useState<string>('');
+  const [author, setAuthor] = useState<string>('');
   
   // Optimistic state for UI updates - initialize with null, will be set in useEffect
   const [optimisticFocus, setOptimisticFocus] = useState<string | null>(null);
@@ -103,6 +105,28 @@ export default function DashboardPage() {
     const focus = profile?.current_focus || defaultFocus;
     setOptimisticFocus(focus);
   }, [profile?.current_focus, defaultFocus]);
+
+  // Fetch daily wisdom quote
+  useEffect(() => {
+    const fetchQuote = async () => {
+      try {
+        const response = await fetch('https://api.quotable.io/random?tags=technology,wisdom');
+        if (response.ok) {
+          const data = await response.json();
+          setQuote(data.content);
+          setAuthor(data.author);
+        } else {
+          throw new Error('Failed to fetch quote');
+        }
+      } catch (err) {
+        // Fallback to default quote
+        setQuote('The expert in anything was once a beginner.');
+        setAuthor('');
+      }
+    };
+
+    fetchQuote();
+  }, []);
 
   const fetchUserActivity = async () => {
     if (!user) {
@@ -533,8 +557,11 @@ export default function DashboardPage() {
     return (
       <View style={styles.wisdomCard}>
         <Text style={styles.wisdomText}>
-          "Success is the sum of small efforts, repeated day in and day out."
+          "{quote || 'The expert in anything was once a beginner.'}"
         </Text>
+        {author && (
+          <Text style={styles.wisdomAuthor}>— {author}</Text>
+        )}
       </View>
     );
   };
@@ -833,6 +860,14 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: 8,
+  },
+  wisdomAuthor: {
+    fontSize: 13,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'normal',
   },
   activityList: {
     gap: 10,

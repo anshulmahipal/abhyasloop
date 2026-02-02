@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, processColor, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LineChart } from 'react-native-gifted-charts';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -14,12 +15,24 @@ interface Badge {
   unlocked: boolean;
 }
 
+interface QuizResult {
+  score: number;
+  total_questions: number;
+  created_at?: string;
+  completed_at?: string;
+}
+
 export default function ProfilePage() {
-  const { profile, user, loading: authLoading } = useAuth();
+  const { profile, user, session, loading: authLoading } = useAuth();
   const router = useRouter();
   const [globalRank, setGlobalRank] = useState<number | null>(null);
   const [isLoadingRank, setIsLoadingRank] = useState(true);
   const [memberSince, setMemberSince] = useState<string>('');
+  const [chartData, setChartData] = useState<Array<{ value: number }>>([]);
+  const [isLoadingChart, setIsLoadingChart] = useState(true);
+  
+  // Calculate chart width using Dimensions
+  const chartWidth = Dimensions.get('window').width - 60;
 
   // Calculate member since year from user creation date
   useEffect(() => {
@@ -65,47 +78,68 @@ export default function ProfilePage() {
     }
   }, [user, profile, authLoading]);
 
-  const handleLogout = async () => {
-    // Web-specific confirmation
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const confirmed = window.confirm('Are you sure you want to log out?');
-      if (!confirmed) {
+  // Fetch quiz results for performance chart
+  useEffect(() => {
+    const fetchQuizResults = async () => {
+      if (!session?.user) {
+        setIsLoadingChart(false);
         return;
       }
-      
+
       try {
-        await supabase.auth.signOut();
-      } catch (error) {
-        console.error('Error signing out:', error);
-        window.alert('Failed to log out. Please try again.');
+        setIsLoadingChart(true);
+        // Try to fetch from 'results' table first, fallback to 'quiz_attempts'
+        let data, error;
+        
+        // Try results table first with created_at
+        const { data: resultsData, error: resultsError } = await supabase
+          .from('results')
+          .select('score, total_questions, created_at')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: true })
+          .limit(10);
+
+        if (!resultsError && resultsData) {
+          // Use results table data
+          data = resultsData;
+          error = null;
+        } else {
+          // Fallback to quiz_attempts table with completed_at
+          const attemptQuery = await supabase
+            .from('quiz_attempts')
+            .select('score, total_questions, completed_at')
+            .eq('user_id', session.user.id)
+            .order('completed_at', { ascending: true })
+            .limit(10);
+          data = attemptQuery.data;
+          error = attemptQuery.error;
+        }
+
+        if (error) {
+          console.error('Error fetching quiz results:', error);
+          setChartData([]);
+        } else if (data && data.length > 0) {
+          // Transform data: calculate percentage for each quiz
+          // Format: { value: number } where value = (score / total_questions) * 100
+          const transformed = data.map((item: QuizResult) => ({
+            value: (item.score / item.total_questions) * 100,
+          }));
+          setChartData(transformed);
+        } else {
+          setChartData([]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch quiz results:', err);
+        setChartData([]);
+      } finally {
+        setIsLoadingChart(false);
       }
-      return;
+    };
+
+    if (!authLoading && session?.user) {
+      fetchQuizResults();
     }
-    
-    // Native platforms use Alert
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await supabase.auth.signOut();
-            } catch (error) {
-              console.error('Error signing out:', error);
-              Alert.alert('Error', 'Failed to log out. Please try again.');
-            }
-          },
-        },
-      ]
-    );
-  };
+  }, [session, authLoading]);
 
   const coins = profile?.coins || 0;
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'User';
@@ -162,40 +196,111 @@ export default function ProfilePage() {
               </View>
             )}
           </View>
-          <Text style={styles.userName}>{displayName}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.userName}>{displayName}</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/(protected)/profile/edit')}
+              activeOpacity={0.7}
+              style={styles.editIconButton}
+            >
+              <Ionicons name="pencil" size={18} color="#FF512F" />
+            </TouchableOpacity>
+          </View>
           {memberSince && (
             <Text style={styles.memberSince}>Member since {memberSince}</Text>
           )}
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => router.push('/(protected)/profile/edit')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="pencil" size={18} color="#FF512F" />
-            <Text style={styles.editButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{coins.toLocaleString()}</Text>
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => router.push('/(protected)/profile/wallet')}
+            activeOpacity={0.8}
+          >
+            <Text 
+              style={styles.statValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+            >
+              {coins.toLocaleString()}
+            </Text>
             <Text style={styles.statLabel}>Total Coins</Text>
             <Ionicons name="wallet" size={24} color="#FF512F" style={styles.statIcon} />
-          </View>
-          <View style={styles.statCard}>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => router.push('/(protected)/leaderboard')}
+            activeOpacity={0.8}
+          >
             {isLoadingRank ? (
               <ActivityIndicator size="small" color="#FF512F" />
             ) : (
-              <Text style={styles.statValue}>#{globalRank || '—'}</Text>
+              <Text 
+                style={styles.statValue}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.5}
+              >
+                #{globalRank || '—'}
+              </Text>
             )}
             <Text style={styles.statLabel}>Global Rank</Text>
             <Ionicons name="trophy" size={24} color="#FF512F" style={styles.statIcon} />
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue} numberOfLines={1}>{currentFocus}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.statCard}
+            onPress={() => router.push('/(protected)/quiz/mistakes')}
+            activeOpacity={0.8}
+          >
+            <Text 
+              style={styles.statValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+            >
+              {currentFocus || 'None'}
+            </Text>
             <Text style={styles.statLabel}>Focus</Text>
             <Ionicons name="target" size={24} color="#FF512F" style={styles.statIcon} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Performance Chart Section */}
+        <View style={styles.chartSection}>
+          <Text style={styles.sectionTitle}>Performance Trend</Text>
+          <View style={styles.chartCard}>
+            {isLoadingChart ? (
+              <View style={styles.chartLoadingContainer}>
+                <ActivityIndicator size="small" color="#FF512F" />
+              </View>
+            ) : chartData.length === 0 ? (
+              <View style={styles.chartEmptyContainer}>
+                <Text style={styles.chartEmptyText}>Play a quiz to unlock your trend graph!</Text>
+              </View>
+            ) : (
+              <LineChart
+                data={chartData}
+                areaChart={true}
+                curved={true}
+                color="#FF512F"
+                startFillColor="#FF512F"
+                endFillColor="#FF512F"
+                startOpacity={0.3}
+                endOpacity={0.1}
+                hideDataPoints={false}
+                dataPointsColor="#FF512F"
+                thickness={3}
+                rulesType="solid"
+                rulesColor="#E0E0E0"
+                yAxisTextStyle={{ color: '#888' }}
+                width={chartWidth}
+                maxValue={100}
+                noOfSections={4}
+                height={200}
+              />
+            )}
           </View>
         </View>
 
@@ -230,15 +335,6 @@ export default function ProfilePage() {
           </View>
         </View>
 
-        {/* Log Out Button */}
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="log-out-outline" size={20} color="#F44336" />
-          <Text style={styles.logoutButtonText}>Log Out</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -307,35 +403,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-  editButton: {
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#FF512F',
-    gap: 6,
+    gap: 8,
+    marginBottom: 8,
   },
-  editButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FF512F',
+  editIconButton: {
+    padding: 4,
   },
   statsGrid: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     marginBottom: 32,
-    gap: 12,
+    gap: 10,
   },
   statCard: {
     flex: 1,
+    minHeight: 100,
     backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 20,
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -347,16 +438,17 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#FF512F',
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: 'center',
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
     fontWeight: '600',
+    marginTop: 4,
     textAlign: 'center',
   },
   statIcon: {
@@ -364,6 +456,41 @@ const styles = StyleSheet.create({
     top: 12,
     right: 12,
     opacity: 0.3,
+  },
+  chartSection: {
+    paddingHorizontal: 20,
+    marginBottom: 32,
+  },
+  chartCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginVertical: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chartLoadingContainer: {
+    height: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chartEmptyContainer: {
+    height: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chartEmptyText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
   badgesSection: {
     paddingHorizontal: 20,
@@ -428,24 +555,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderWidth: 2,
-    borderColor: '#F44336',
-    gap: 8,
-  },
-  logoutButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#F44336',
   },
 });
