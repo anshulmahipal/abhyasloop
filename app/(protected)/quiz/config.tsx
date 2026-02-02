@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../contexts/AuthContext';
 import { generateQuiz } from '../../../lib/api';
@@ -14,7 +16,7 @@ const DIFFICULTY_LEVELS: Array<'easy' | 'medium' | 'hard'> = ['easy', 'medium', 
 export default function QuizConfigPage() {
   const { profile } = useAuth();
   const router = useRouter();
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
@@ -55,9 +57,13 @@ export default function QuizConfigPage() {
     };
   }, []);
 
+  const handleChipPress = (topic: string) => {
+    setSelectedTopic(topic);
+  };
+
   const handleStartQuiz = async () => {
-    if (!selectedTopic) {
-      Alert.alert('Select Topic', 'Please select a topic to start the quiz.');
+    if (!selectedTopic || selectedTopic.trim() === '') {
+      Alert.alert('Select Topic', 'Please select or enter a topic to start the quiz.');
       return;
     }
 
@@ -118,224 +124,382 @@ export default function QuizConfigPage() {
     }
   };
 
+  const getDifficultyColor = (difficulty: 'easy' | 'medium' | 'hard') => {
+    switch (difficulty) {
+      case 'easy':
+        return '#4CAF50'; // Green
+      case 'medium':
+        return '#FFC107'; // Yellow
+      case 'hard':
+        return '#F44336'; // Red
+    }
+  };
+
   return (
-    <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Quiz Configuration</Text>
-        
-        <View style={styles.focusBadge}>
-          <Text style={styles.focusText}>Preparing for: {currentFocus}</Text>
-        </View>
+    <View style={styles.screenWrapper}>
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        {/* Gradient Header */}
+        <LinearGradient
+          colors={['#FF6B35', '#F44336']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>New Mission</Text>
+            <View style={styles.contextPill}>
+              <Text style={styles.contextPillText}>
+                Targeting: {currentFocus}
+              </Text>
+            </View>
+          </View>
+        </LinearGradient>
 
-        {/* Topic Selection */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Topic</Text>
-          <View style={styles.optionsGrid}>
-            {topics.map((topic) => (
-              <TouchableOpacity
-                key={topic}
-                style={[
-                  styles.optionCard,
-                  selectedTopic === topic && styles.optionCardSelected,
-                ]}
-                onPress={() => setSelectedTopic(topic)}
-              >
-                <Text
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.container}>
+
+          {/* Topic Section Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Topic</Text>
+            <View style={styles.inputContainer}>
+              <Ionicons name="search" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                style={styles.textInput}
+                placeholder="What are we studying?"
+                placeholderTextColor="#999"
+                value={selectedTopic}
+                onChangeText={setSelectedTopic}
+                autoCapitalize="words"
+              />
+            </View>
+            
+            {/* Quick Chips */}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.chipsContainer}
+              contentContainerStyle={styles.chipsContent}
+            >
+              {topics.map((topic) => (
+                <TouchableOpacity
+                  key={topic}
                   style={[
-                    styles.optionText,
-                    selectedTopic === topic && styles.optionTextSelected,
+                    styles.chip,
+                    selectedTopic.toLowerCase() === topic.toLowerCase() && styles.chipSelected,
                   ]}
+                  onPress={() => handleChipPress(topic)}
                 >
-                  {topic}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.chipText,
+                      selectedTopic.toLowerCase() === topic.toLowerCase() && styles.chipTextSelected,
+                    ]}
+                  >
+                    {topic}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Difficulty Section Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Intensity Level</Text>
+            <View style={styles.difficultyToggle}>
+              {DIFFICULTY_LEVELS.map((difficulty) => {
+                const isSelected = selectedDifficulty === difficulty;
+                const color = getDifficultyColor(difficulty);
+                
+                return (
+                  <TouchableOpacity
+                    key={difficulty}
+                    style={[
+                      styles.difficultySegment,
+                      isSelected && styles.difficultySegmentActive,
+                      isSelected && { backgroundColor: '#ffffff', shadowColor: color },
+                    ]}
+                    onPress={() => setSelectedDifficulty(difficulty)}
+                  >
+                    <Text
+                      style={[
+                        styles.difficultySegmentText,
+                        isSelected && { color },
+                        !isSelected && difficulty === 'medium' && { color: '#FF8C00' }, // Darker Orange/Gold for Medium
+                        !isSelected && difficulty !== 'medium' && { color: '#666' },
+                      ]}
+                    >
+                      {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
+                    </Text>
+                    {isSelected && (
+                      <View style={[styles.difficultyIndicator, { backgroundColor: color }]} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
+      </ScrollView>
 
-        {/* Difficulty Selection */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Difficulty</Text>
-          <View style={styles.difficultyRow}>
-            {DIFFICULTY_LEVELS.map((difficulty) => (
-              <TouchableOpacity
-                key={difficulty}
-                style={[
-                  styles.difficultyButton,
-                  selectedDifficulty === difficulty && styles.difficultyButtonSelected,
-                ]}
-                onPress={() => setSelectedDifficulty(difficulty)}
-              >
-                <Text
-                  style={[
-                    styles.difficultyText,
-                    selectedDifficulty === difficulty && styles.difficultyTextSelected,
-                  ]}
-                >
-                  {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Start Button */}
+      {/* Launch Button - Floating */}
+      <View style={styles.launchButtonContainer}>
         <TouchableOpacity
-          style={[
-            styles.startButton,
-            (!selectedTopic || isGenerating || isButtonDisabled) && styles.startButtonDisabled,
-          ]}
+          style={styles.launchButton}
           onPress={handleStartQuiz}
-          disabled={!selectedTopic || isGenerating || isButtonDisabled}
+          disabled={!selectedTopic || selectedTopic.trim() === '' || isGenerating || isButtonDisabled}
+          activeOpacity={0.9}
         >
           {isGenerating ? (
-            <ActivityIndicator color="#ffffff" />
+            <View style={styles.launchButtonGradient}>
+              <ActivityIndicator color="#ffffff" />
+            </View>
           ) : (
-            <Text style={styles.startButtonText}>Start Quiz</Text>
+            <LinearGradient
+              colors={['#FF6B35', '#F44336']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={[
+                styles.launchButtonGradient,
+                (!selectedTopic || selectedTopic.trim() === '' || isButtonDisabled) && styles.launchButtonGradientDisabled,
+              ]}
+            >
+              <Text style={styles.launchButtonText}>GENERATE QUIZ 🚀</Text>
+            </LinearGradient>
           )}
         </TouchableOpacity>
       </View>
-    </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  // Gradient Header
+  headerGradient: {
+    width: '100%',
+    height: 200, // Fixed height instead of percentage
+    justifyContent: 'flex-end',
+    paddingBottom: 40,
+    paddingTop: Platform.OS === 'ios' ? 50 : 20, // Safe area padding
+    zIndex: 1,
+  },
+  headerContent: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 16,
+    letterSpacing: 1,
+  },
   scrollView: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    zIndex: 2, // Cards sit on top of header
   },
   scrollContent: {
-    flexGrow: 1,
+    paddingBottom: 140, // Space for floating launch button
   },
   container: {
-    flex: 1,
-    padding: 20,
-    maxWidth: 800,
+    marginTop: -60, // Overlap effect
+    padding: 24,
+    paddingTop: 0,
+    maxWidth: 500, // Mobile app card width on web
     alignSelf: 'center',
-    width: '100%',
+    width: '90%',
+    zIndex: 2,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  focusBadge: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 8,
+  // Context Pill (inside header)
+  contextPill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingVertical: 6,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    alignSelf: 'center',
-    marginBottom: 32,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  focusText: {
+  contextPillText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
+    letterSpacing: 0.5,
   },
-  section: {
-    marginBottom: 32,
+  // Card Styles (overlapping header)
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  sectionTitle: {
-    fontSize: 20,
+  cardTitle: {
+    fontSize: 16,
     fontWeight: '700',
     color: '#1a1a1a',
     marginBottom: 16,
   },
-  optionsGrid: {
+  // Topic Input (Neumorphic)
+  inputContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  optionCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 20,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 4,
+    elevation: 2,
+    // Inner shadow effect (neumorphic)
+    borderWidth: 1,
+    borderColor: '#e8e8e8',
   },
-  optionCardSelected: {
-    borderColor: '#007AFF',
-    backgroundColor: '#f0f8ff',
+  inputIcon: {
+    marginRight: 12,
   },
-  optionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    textAlign: 'center',
-  },
-  optionTextSelected: {
-    color: '#007AFF',
-  },
-  difficultyRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  difficultyButton: {
+  textInput: {
     flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  difficultyButtonSelected: {
-    borderColor: '#007AFF',
-    backgroundColor: '#f0f8ff',
-  },
-  difficultyText: {
     fontSize: 16,
-    fontWeight: '600',
     color: '#1a1a1a',
+    fontWeight: '500',
   },
-  difficultyTextSelected: {
-    color: '#007AFF',
+  // Chips
+  chipsContainer: {
+    marginTop: 8,
   },
-  startButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
+  chipsContent: {
+    paddingRight: 20,
+  },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  chipSelected: {
     backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  chipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  chipTextSelected: {
+    color: '#ffffff',
+  },
+  // Difficulty Toggle
+  difficultyToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#e8e8e8',
     borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  difficultySegment: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 16,
-    shadowColor: '#007AFF',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  difficultySegmentActive: {
     shadowOffset: {
       width: 0,
       height: 4,
     },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 6,
   },
-  startButtonDisabled: {
-    backgroundColor: '#ccc',
+  difficultySegmentText: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  difficultyIndicator: {
+    position: 'absolute',
+    bottom: 4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  // Launch Button - Floating
+  launchButtonContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 10, // Safe area padding for iPhone
+    maxWidth: 500, // Match card width
+    alignSelf: 'center',
+    width: '90%',
+    zIndex: 3,
+  },
+  launchButton: {
+    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  launchButtonGradient: {
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FF6B35',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  launchButtonGradientDisabled: {
+    opacity: 0.5,
     shadowOpacity: 0,
+    elevation: 0,
   },
-  startButtonText: {
+  launchButtonText: {
     color: '#ffffff',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 2,
   },
 });

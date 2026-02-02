@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions, Alert, Animated } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../../../lib/supabase';
 import { logger } from '../../../../lib/logger';
 import { DifficultyBadge } from '../../../../components/DifficultyBadge';
+import { Ionicons } from '@expo/vector-icons';
 
 interface Question {
   id: string;
@@ -29,6 +30,12 @@ interface QuizAttemptWithQuestions {
   } | null;
 }
 
+interface AIExplanation {
+  explanation: string;
+  trap_analysis?: string;
+  mnemonic: string;
+}
+
 export default function ReviewPage() {
   const params = useLocalSearchParams<{ attemptId?: string }>();
   const router = useRouter();
@@ -39,6 +46,9 @@ export default function ReviewPage() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadingExplanationId, setLoadingExplanationId] = useState<string | null>(null);
+  const [explanations, setExplanations] = useState<Record<string, AIExplanation>>({});
+  const fadeAnimRefs = useRef<Record<string, Animated.Value>>({});
 
   useEffect(() => {
     const fetchReviewData = async () => {
@@ -132,6 +142,62 @@ export default function ReviewPage() {
     }
   };
 
+  const askAI = async (question: Question, userAnswer: string | null) => {
+    if (explanations[question.id]) {
+      // Already have explanation
+      return;
+    }
+
+    try {
+      setLoadingExplanationId(question.id);
+
+      const { data, error: invokeError } = await supabase.functions.invoke('explain-question', {
+        body: {
+          question: question.question_text,
+          options: question.options,
+          correctAnswer: question.options[question.correct_index],
+          userAnswer: userAnswer,
+        },
+      });
+
+      if (invokeError) {
+        console.error('Error calling explain-question:', invokeError);
+        Alert.alert('Coach is sleeping right now', 'Try again.');
+        return;
+      }
+
+      if (data && data.explanation && data.mnemonic) {
+        // Initialize fade animation for this question
+        if (!fadeAnimRefs.current[question.id]) {
+          fadeAnimRefs.current[question.id] = new Animated.Value(0);
+        }
+        
+        setExplanations((prev) => ({
+          ...prev,
+          [question.id]: {
+            explanation: data.explanation,
+            trap_analysis: data.trap_analysis || data.explanation, // Fallback if trap_analysis not provided
+            mnemonic: data.mnemonic,
+          },
+        }));
+
+        // Fade in animation
+        Animated.timing(fadeAnimRefs.current[question.id], {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }).start();
+      } else {
+        Alert.alert('Coach is sleeping right now', 'Try again.');
+      }
+    } catch (err) {
+      console.error('Error fetching AI explanation:', err);
+      Alert.alert('Coach is sleeping right now', 'Try again.');
+    } finally {
+      setLoadingExplanationId(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -178,6 +244,21 @@ export default function ReviewPage() {
     : null;
   const correctIndex = currentQuestion.correct_index;
   const isCorrect = userSelectedIndex !== null && userSelectedIndex === correctIndex;
+  const shouldShowAICoach = !isCorrect; // Show for wrong answers or unanswered questions
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Review Debug:', {
+      questionId: currentQuestion.id,
+      userSelectedIndex,
+      correctIndex,
+      isCorrect,
+      shouldShowAICoach,
+      hasExplanation: !!explanations[currentQuestion.id],
+      userAnswersLength: userAnswers.length,
+      currentQuestionIndex,
+    });
+  }, [currentQuestion.id, userSelectedIndex, correctIndex, isCorrect, shouldShowAICoach, explanations, userAnswers.length, currentQuestionIndex]);
 
   const getOptionState = (optionIndex: number): 'default' | 'user-selected-correct' | 'user-selected-incorrect' | 'correct' => {
     // Always highlight correct answer in green
@@ -269,6 +350,68 @@ export default function ReviewPage() {
             <Text style={styles.explanationText}>{currentQuestion.explanation}</Text>
           </View>
 
+          {/* AI Coach Button (only show for wrong answers) */}
+          {shouldShowAICoach && (
+            <View style={styles.aiCoachContainer}>
+              {explanations[currentQuestion.id] ? (
+                <Animated.View
+                  style={[
+                    styles.aiCoachCard,
+                    {
+                      opacity: fadeAnimRefs.current[currentQuestion.id] || new Animated.Value(1),
+                    },
+                  ]}
+                >
+                  <View style={styles.aiCoachHeader}>
+                    <Text style={styles.aiCoachTitle}>👨‍🏫 Coach Says:</Text>
+                  </View>
+                  <Text style={styles.aiCoachExplanation}>
+                    {explanations[currentQuestion.id].explanation}
+                  </Text>
+                  {explanations[currentQuestion.id].trap_analysis && (
+                    <View style={styles.trapAlert}>
+                      <Text style={styles.trapIcon}>⚠️</Text>
+                      <Text style={styles.trapText}>
+                        <Text style={styles.trapLabel}>Why you got tricked: </Text>
+                        {explanations[currentQuestion.id].trap_analysis}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.mnemonicContainer}>
+                    <Text style={styles.mnemonicIcon}>💡</Text>
+                    <Text style={styles.mnemonicText}>
+                      <Text style={styles.mnemonicLabel}>Remember this: </Text>
+                      {explanations[currentQuestion.id].mnemonic}
+                    </Text>
+                  </View>
+                </Animated.View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.aiCoachButton}
+                  onPress={() => {
+                    const userSelectedOption = userSelectedIndex !== null && userSelectedIndex !== undefined
+                      ? currentQuestion.options[userSelectedIndex]
+                      : null;
+                    askAI(currentQuestion, userSelectedOption);
+                  }}
+                  disabled={loadingExplanationId === currentQuestion.id}
+                >
+                  {loadingExplanationId === currentQuestion.id ? (
+                    <>
+                      <ActivityIndicator size="small" color="#6C5CE7" />
+                      <Text style={styles.aiCoachButtonText}>Asking Coach...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.aiCoachButtonEmoji}>🤖</Text>
+                      <Text style={styles.aiCoachButtonText}>Explain this to me</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           {/* Navigation */}
           <View style={styles.navigationContainer}>
             <TouchableOpacity
@@ -347,6 +490,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 100, // Extra padding for floating tab bar (60px height + 20px bottom + 20px margin)
   },
   content: {
     flex: 1,
@@ -464,7 +608,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 16,
-    marginBottom: 30,
+    marginBottom: 100, // Extra margin to account for floating tab bar
   },
   navButton: {
     flex: 1,
@@ -508,5 +652,106 @@ const styles = StyleSheet.create({
     color: '#d32f2f',
     textAlign: 'center',
     marginBottom: 20,
+  },
+  aiCoachContainer: {
+    marginBottom: 30,
+  },
+  aiCoachButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    gap: 8,
+    borderWidth: 2,
+    borderColor: '#6C5CE7',
+    minHeight: 48,
+  },
+  aiCoachButtonEmoji: {
+    fontSize: 20,
+  },
+  aiCoachButtonText: {
+    color: '#6C5CE7',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  aiCoachCard: {
+    backgroundColor: '#F3E5F5',
+    borderRadius: 16,
+    padding: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#9C27B0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  aiCoachHeader: {
+    marginBottom: 12,
+  },
+  aiCoachTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#9C27B0',
+    marginBottom: 12,
+  },
+  aiCoachExplanation: {
+    fontSize: 16,
+    color: '#333',
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  trapAlert: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFF3E0',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF9800',
+    gap: 10,
+  },
+  trapIcon: {
+    fontSize: 20,
+  },
+  trapText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+  },
+  trapLabel: {
+    fontWeight: '700',
+    color: '#FF9800',
+  },
+  mnemonicContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#E1BEE7',
+  },
+  mnemonicIcon: {
+    fontSize: 24,
+  },
+  mnemonicText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+  },
+  mnemonicLabel: {
+    fontWeight: '700',
+    color: '#9C27B0',
   },
 });
