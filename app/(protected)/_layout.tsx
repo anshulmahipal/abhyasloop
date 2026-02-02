@@ -75,19 +75,19 @@ export default function ProtectedLayout() {
         }}
       />
       <Tabs.Screen
-        name="quiz_start"
-        options={{
-          title: '',
-          tabBarButton: (props) => <QuizTabButton {...props} />,
-        }}
-      />
-      <Tabs.Screen
         name="leaderboard"
         options={{
           title: 'Rankings',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={26} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="quiz_start"
+        options={{
+          title: '',
+          tabBarButton: (props) => <QuizTabButton {...props} />,
         }}
       />
       <Tabs.Screen
