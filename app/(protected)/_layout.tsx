@@ -127,6 +127,13 @@ export default function ProtectedLayout() {
         }}
       />
       <Tabs.Screen
+        name="quiz/review-simple"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
         name="profile/edit"
         options={{
           href: null,

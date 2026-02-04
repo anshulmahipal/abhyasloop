@@ -1,46 +1,89 @@
 import { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Modal, Pressable, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../contexts/AuthContext';
 import { generateQuiz } from '../../../lib/api';
 
-const SUBJECTS = ['Quant', 'Reasoning', 'English', 'Current Affairs'];
+type TabType = 'recent' | 'explore';
 
-const TRENDING_TOPICS: Record<string, string[]> = {
-  Quant: ['Data Interpretation', 'Simplification', 'Number Series', 'Quadratic Eq'],
-  Reasoning: ['Puzzles', 'Syllogism', 'Blood Relations'],
-  English: ['Reading Comprehension', 'Cloze Test', 'Error Spotting'],
-  'Current Affairs': ['National News', 'International Affairs', 'Science & Tech', 'Sports'],
+interface RecentTopic {
+  id: string;
+  name: string;
+}
+
+interface Category {
+  id: string;
+  title: string;
+  icon: string;
+  topics: string[];
+}
+
+const CATEGORIES: Category[] = [
+  {
+    id: 'math',
+    title: 'Mathematics',
+    icon: 'calculator',
+    topics: ['Algebra', 'Geometry', 'Calculus', 'Statistics', 'Trigonometry'],
+  },
+  {
+    id: 'science',
+    title: 'Science',
+    icon: 'flask',
+    topics: ['Physics', 'Chemistry', 'Biology', 'Astronomy', 'Earth Science'],
+  },
+  {
+    id: 'history',
+    title: 'History',
+    icon: 'book',
+    topics: ['World History', 'Ancient History', 'Modern History', 'US History', 'European History'],
+  },
+  {
+    id: 'tech',
+    title: 'Tech',
+    icon: 'laptop',
+    topics: ['Programming', 'Web Development', 'Data Science', 'AI/ML', 'Cybersecurity'],
+  },
+];
+
+const DIFFICULTY_LEVELS: Array<'easy' | 'medium' | 'hard'> = ['easy', 'medium', 'hard'];
+const DIFFICULTY_LABELS = {
+  easy: '🟢 Easy',
+  medium: '🟡 Medium',
+  hard: '🔥 Hard',
 };
 
 const QUESTION_COUNTS = ['5', '10', '15', '20'];
 
-const DIFFICULTY_LEVELS: Array<'easy' | 'medium' | 'hard'> = ['easy', 'medium', 'hard'];
-const DIFFICULTY_LABELS = {
-  easy: '🟢 Warm Up',
-  medium: '🟡 Standard',
-  hard: '🔥 Hell Mode',
-};
+// Mock recent topics - replace with actual data later
+const MOCK_RECENT_TOPICS: RecentTopic[] = [
+  { id: '1', name: 'Algebra' },
+  { id: '2', name: 'Physics' },
+];
 
 export default function QuizConfigPage() {
   const { profile } = useAuth();
   const router = useRouter();
-  const [selectedSubject, setSelectedSubject] = useState<string>('Quant');
-  const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+  
+  // Tab state - smart default: if no recent history, default to 'explore'
+  const [activeTab, setActiveTab] = useState<TabType>(MOCK_RECENT_TOPICS.length === 0 ? 'explore' : 'recent');
+  
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedExam, setSelectedExam] = useState<Category | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<string | null | undefined>(undefined); // undefined = nothing selected, null = Mock Test, string = specific topic
   const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [questionCount, setQuestionCount] = useState<string>('10');
+  
+  // Quiz generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
   const buttonDisableTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Get current_focus from user profile, default to 'General Knowledge' if not set
   const currentFocus = profile?.current_focus || 'General Knowledge';
-  
-  // Get trending topics based on selected subject
-  const trendingTopics = TRENDING_TOPICS[selectedSubject] || [];
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -51,19 +94,28 @@ export default function QuizConfigPage() {
     };
   }, []);
 
-  const handleSubjectPress = (subject: string) => {
-    setSelectedSubject(subject);
-    // Clear selected topic when subject changes
-    setSelectedTopic('');
+  const handleCategoryPress = (category: Category) => {
+    setSelectedExam(category);
+    setSelectedTopic(undefined); // Reset selection - nothing selected initially
+    setModalVisible(true);
   };
 
-  const handleTopicPress = (topic: string) => {
-    setSelectedTopic(topic);
+  const handleRecentTopicPress = (topic: RecentTopic) => {
+    // For recent topics, create a temporary category object
+    const tempCategory: Category = {
+      id: 'recent',
+      title: topic.name,
+      icon: 'book',
+      topics: [topic.name],
+    };
+    setSelectedExam(tempCategory);
+    setSelectedTopic(topic.name);
+    setModalVisible(true);
   };
 
   const handleStartQuiz = async () => {
-    if (!selectedTopic || selectedTopic.trim() === '') {
-      Alert.alert('Select Topic', 'Please select or enter a topic to start the quiz.');
+    if (!selectedExam || selectedTopic === undefined) {
+      Alert.alert('Select Option', 'Please select Mock Test or a specific topic to start the quiz.');
       return;
     }
 
@@ -79,16 +131,24 @@ export default function QuizConfigPage() {
 
     try {
       setIsGenerating(true);
+      setModalVisible(false);
       
-      // Generate quiz with current_focus from profile, topic, difficulty, and question count
-      const response = await generateQuiz(selectedTopic, selectedDifficulty, currentFocus, parseInt(questionCount, 10));
+      // If selectedTopic is null, it means "Full Mock Test" was selected
+      // Use the exam title as the topic, or 'all' for mock test
+      const topicForQuiz = selectedTopic === null ? selectedExam.title : selectedTopic;
       
-      // Navigate to quiz page with generated quiz ID and params
+      const response = await generateQuiz(
+        topicForQuiz,
+        selectedDifficulty,
+        currentFocus,
+        parseInt(questionCount, 10)
+      );
+      
       router.push({
         pathname: '/(protected)/quiz/[id]',
         params: {
           id: response.quizId,
-          topic: selectedTopic,
+          topic: topicForQuiz,
           difficulty: selectedDifficulty,
           examType: currentFocus,
         },
@@ -96,7 +156,6 @@ export default function QuizConfigPage() {
     } catch (error) {
       console.error('Failed to generate quiz:', error);
       
-      // Check if this is a rate limit error (429 or "Please wait" message)
       const isRateLimit = error instanceof Error && 
                          ((error as any).isRateLimit || 
                           error.message.includes('Please wait') ||
@@ -108,7 +167,6 @@ export default function QuizConfigPage() {
                           error.message.includes('Well done'));
       
       if (isRateLimit) {
-        // Show the beautiful, encouraging message from the API
         Alert.alert(
           'Take a Quick Break!',
           error instanceof Error ? error.message : 'Please finish your current quiz or wait a moment to start a new one.'
@@ -124,263 +182,326 @@ export default function QuizConfigPage() {
     }
   };
 
-  const getDifficultyColor = (difficulty: 'easy' | 'medium' | 'hard') => {
-    switch (difficulty) {
-      case 'easy':
-        return '#4CAF50'; // Green
-      case 'medium':
-        return '#FFC107'; // Yellow
-      case 'hard':
-        return '#F44336'; // Red
+  const renderTabSwitcher = () => (
+    <View style={styles.tabSwitcher}>
+      <TouchableOpacity
+        style={[styles.tabButton, activeTab === 'recent' && styles.tabButtonActive]}
+        onPress={() => setActiveTab('recent')}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.tabButtonText, activeTab === 'recent' && styles.tabButtonTextActive]}>
+          Recent
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.tabButton, activeTab === 'explore' && styles.tabButtonActive]}
+        onPress={() => setActiveTab('explore')}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.tabButtonText, activeTab === 'explore' && styles.tabButtonTextActive]}>
+          Explore
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderGridCard = (title: string, icon: string, onPress: () => void, showResumeIcon = false) => (
+    <TouchableOpacity
+      style={styles.gridCard}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <Ionicons name={icon as any} size={32} color="#FF512F" />
+      <Text style={styles.gridCardTitle}>{title}</Text>
+      {showResumeIcon && (
+        <Ionicons name="play-circle" size={24} color="#FF512F" style={styles.resumeIcon} />
+      )}
+    </TouchableOpacity>
+  );
+
+  const renderRecentView = () => {
+    if (MOCK_RECENT_TOPICS.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <Ionicons name="book-outline" size={64} color="#ccc" />
+          <Text style={styles.emptyStateTitle}>No Recent Topics</Text>
+          <Text style={styles.emptyStateText}>Start exploring to build your quiz history!</Text>
+          <TouchableOpacity
+            style={styles.emptyStateButton}
+            onPress={() => setActiveTab('explore')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.emptyStateButtonText}>Find a Topic</Text>
+          </TouchableOpacity>
+        </View>
+      );
     }
+
+    return (
+      <View style={styles.gridWrapper}>
+        {MOCK_RECENT_TOPICS.map((item) => (
+          <View key={item.id} style={styles.gridItem}>
+            {renderGridCard(item.name, 'book', () => handleRecentTopicPress(item), true)}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderExploreView = () => (
+    <View style={styles.gridWrapper}>
+      {CATEGORIES.map((item) => (
+        <View key={item.id} style={styles.gridItem}>
+          {renderGridCard(item.title, item.icon as any, () => handleCategoryPress(item))}
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderTopicCard = (isMockTest: boolean, topicName?: string) => {
+    const isSelected = isMockTest 
+      ? selectedTopic === null 
+      : selectedTopic === topicName;
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.topicCard,
+          isMockTest && styles.topicCardMockTest,
+          isSelected && styles.topicCardSelected,
+        ]}
+        onPress={() => setSelectedTopic(isMockTest ? null : topicName || null)}
+        activeOpacity={0.8}
+      >
+        {isMockTest ? (
+          <>
+            <Text style={styles.topicCardIcon}>🏆</Text>
+            <Text style={[
+              styles.topicCardTitle,
+              isSelected && styles.topicCardTitleSelected,
+            ]}>
+              Full Mock Test
+            </Text>
+          </>
+        ) : (
+          <>
+            <Ionicons name="book" size={24} color={isSelected ? "#FF512F" : "#666"} />
+            <Text style={[
+              styles.topicCardTitle,
+              isSelected && styles.topicCardTitleSelected,
+            ]}>
+              {topicName}
+            </Text>
+          </>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderModal = () => {
+    if (!selectedExam) return null;
+
+    return (
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{selectedExam.title}</Text>
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                style={styles.modalCloseButton}
+              >
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Horizontal ScrollView for Topics */}
+            <View style={styles.modalTopicsSection}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.topicCardsContainer}
+              >
+                {/* Fixed Mock Test Card */}
+                {renderTopicCard(true)}
+                
+                {/* Dynamic Topic Cards */}
+                {selectedExam.topics.map((topic) => renderTopicCard(false, topic))}
+              </ScrollView>
+            </View>
+
+            {/* Difficulty Selection */}
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>Difficulty</Text>
+              <View style={styles.difficultyToggle}>
+                {DIFFICULTY_LEVELS.map((difficulty) => {
+                  const isSelected = selectedDifficulty === difficulty;
+                  return (
+                    <TouchableOpacity
+                      key={difficulty}
+                      style={[
+                        styles.difficultySegment,
+                        isSelected && styles.difficultySegmentActive,
+                      ]}
+                      onPress={() => setSelectedDifficulty(difficulty)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.difficultySegmentText,
+                          isSelected && styles.difficultySegmentTextActive,
+                        ]}
+                      >
+                        {DIFFICULTY_LABELS[difficulty]}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Modal Footer - Play Button */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[
+                  styles.modalStartButton,
+                  styles.modalStartButtonFull,
+                  (selectedTopic === undefined || isGenerating || isButtonDisabled) && styles.modalStartButtonDisabled,
+                ]}
+                onPress={handleStartQuiz}
+                disabled={selectedTopic === undefined || isGenerating || isButtonDisabled}
+                activeOpacity={0.8}
+              >
+                {isGenerating ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
+                ) : (
+                  <Text style={styles.modalStartButtonText}>Start Quiz</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    );
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.screenWrapper}>
-        <KeyboardAvoidingView
-          style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        >
-          {/* Simple Title Bar */}
-          <View style={styles.titleBar}>
-            <Text style={styles.titleBarText}>Quiz Configuration</Text>
-          </View>
+      {/* Title Bar */}
+      <View style={styles.titleBar}>
+        <Text style={styles.titleBarText}>New Quiz</Text>
+      </View>
 
-        <ScrollView 
-          style={styles.scrollView} 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.container}>
-            {/* Main Settings Card */}
-            <View style={styles.mainCard}>
-              {/* Subject Selector */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Subject</Text>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.subjectContainer}
-                  contentContainerStyle={styles.subjectContent}
-                >
-                  {SUBJECTS.map((subject) => (
-                    <TouchableOpacity
-                      key={subject}
-                      style={[
-                        styles.subjectPill,
-                        selectedSubject === subject && styles.subjectPillSelected,
-                      ]}
-                      onPress={() => handleSubjectPress(subject)}
-                    >
-                      <Text
-                        style={[
-                          styles.subjectPillText,
-                          selectedSubject === subject && styles.subjectPillTextSelected,
-                        ]}
-                      >
-                        {subject}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
+      {/* Tab Switcher */}
+      <View style={styles.tabSwitcherContainer}>
+        {renderTabSwitcher()}
+      </View>
 
-              {/* Topic Input Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Topic</Text>
-                <View style={styles.inputContainer}>
-                  <Ionicons name="search" size={20} color="#666" style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="What are we studying?"
-                    placeholderTextColor="#999"
-                    value={selectedTopic}
-                    onChangeText={setSelectedTopic}
-                    autoCapitalize="words"
-                  />
-                </View>
-                
-                {/* Trending Topics */}
-                <Text style={styles.trendingTitle}>Trending Topics</Text>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.topicsContainer}
-                  contentContainerStyle={styles.topicsContent}
-                >
-                  {trendingTopics.map((topic) => (
-                    <TouchableOpacity
-                      key={topic}
-                      style={[
-                        styles.topicTag,
-                        selectedTopic.toLowerCase() === topic.toLowerCase() && styles.topicTagSelected,
-                      ]}
-                      onPress={() => handleTopicPress(topic)}
-                    >
-                      <Text
-                        style={[
-                          styles.topicTagText,
-                          selectedTopic.toLowerCase() === topic.toLowerCase() && styles.topicTagTextSelected,
-                        ]}
-                      >
-                        {topic}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              {/* Question Count Control */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Number of Questions</Text>
-                <View style={styles.questionCountToggle}>
-                  {QUESTION_COUNTS.map((count) => {
-                    const isSelected = questionCount === count;
-                    return (
-                      <TouchableOpacity
-                        key={count}
-                        style={[
-                          styles.questionCountSegment,
-                          isSelected && styles.questionCountSegmentActive,
-                        ]}
-                        onPress={() => setQuestionCount(count)}
-                      >
-                        <Text
-                          style={[
-                            styles.questionCountSegmentText,
-                            isSelected && styles.questionCountSegmentTextActive,
-                          ]}
-                        >
-                          {count}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Challenge Level Section */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Challenge Level</Text>
-                <View style={styles.difficultyToggle}>
-                  {DIFFICULTY_LEVELS.map((difficulty) => {
-                    const isSelected = selectedDifficulty === difficulty;
-                    const color = getDifficultyColor(difficulty);
-                    
-                    return (
-                      <TouchableOpacity
-                        key={difficulty}
-                        style={[
-                          styles.difficultySegment,
-                          isSelected && styles.difficultySegmentActive,
-                          isSelected && { backgroundColor: '#ffffff', shadowColor: color },
-                        ]}
-                        onPress={() => setSelectedDifficulty(difficulty)}
-                      >
-                        <Text
-                          style={[
-                            styles.difficultySegmentText,
-                            isSelected && { color },
-                            !isSelected && { color: '#666' },
-                          ]}
-                        >
-                          {DIFFICULTY_LABELS[difficulty]}
-                        </Text>
-                        {isSelected && (
-                          <View style={[styles.difficultyIndicator, { backgroundColor: color }]} />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-
-        {/* Generate Quiz Button - Outside ScrollView, Absolutely Positioned */}
-        <View style={styles.launchButtonContainer}>
-          <TouchableOpacity
-            style={styles.launchButton}
-            onPress={handleStartQuiz}
-            disabled={!selectedTopic || selectedTopic.trim() === '' || isGenerating || isButtonDisabled}
-            activeOpacity={0.9}
-          >
-            {isGenerating ? (
-              <LinearGradient
-                colors={['#FF6B35', '#F44336']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.launchButtonGradient}
-              >
-                <ActivityIndicator color="#ffffff" size="large" />
-                <Text style={[styles.launchButtonText, { marginTop: 8 }]}>Generating...</Text>
-              </LinearGradient>
-            ) : (
-              <LinearGradient
-                colors={['#FF6B35', '#F44336']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[
-                  styles.launchButtonGradient,
-                  (!selectedTopic || selectedTopic.trim() === '' || isButtonDisabled) && styles.launchButtonGradientDisabled,
-                ]}
-              >
-                <Text style={styles.launchButtonText}>GENERATE QUIZ 🚀</Text>
-              </LinearGradient>
-            )}
-          </TouchableOpacity>
+      {/* Content */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.container}>
+          {activeTab === 'recent' ? renderRecentView() : renderExploreView()}
         </View>
-      </KeyboardAvoidingView>
-    </View>
+      </ScrollView>
+
+      {/* Modal */}
+      {renderModal()}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screenWrapper: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  keyboardView: {
+  titleBar: {
+    backgroundColor: '#FF512F',
+    paddingTop: 20,
+    paddingBottom: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  titleBarText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+    letterSpacing: 0.5,
+  },
+  tabSwitcherContainer: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  tabSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  tabButton: {
     flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  tabButtonActive: {
+    backgroundColor: '#FF512F',
+  },
+  tabButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  tabButtonTextActive: {
+    color: '#ffffff',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingTop: 20,
-    paddingBottom: 150,
+    paddingBottom: 20,
   },
   container: {
-    padding: 24,
-    maxWidth: 500, // Mobile app card width on web
-    alignSelf: 'center',
-    width: '90%',
-  },
-  // Simple Title Bar
-  titleBar: {
-    backgroundColor: '#FF6B35',
-    paddingTop: Platform.OS === 'web' ? 20 : 12,
-    paddingBottom: 16,
     paddingHorizontal: 24,
-    alignItems: 'center',
-    zIndex: 10,
+    maxWidth: 500,
+    alignSelf: 'center',
+    width: '100%',
   },
-  titleBarText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
-    letterSpacing: 0.5,
+  gridWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -8,
   },
-  // Main Card
-  mainCard: {
+  gridItem: {
+    width: '50%',
+    paddingHorizontal: 8,
+    marginBottom: 16,
+  },
+  gridCard: {
+    aspectRatio: 1,
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 24,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -388,105 +509,193 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 8,
+    elevation: 3,
+    position: 'relative',
+  },
+  gridCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  resumeIcon: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  emptyStateButton: {
+    backgroundColor: '#FF512F',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  emptyStateButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    flex: 1,
+  },
+  modalCloseButton: {
+    padding: 4,
+  },
+  modalTopicsSection: {
+    paddingVertical: 24,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  topicCardsContainer: {
+    paddingRight: 24,
+    gap: 16,
+  },
+  topicCard: {
+    width: 140,
+    height: 140,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 2,
   },
-  section: {
-    marginBottom: 20,
+  topicCardMockTest: {
+    backgroundColor: '#FFF9E6',
+    borderColor: '#FFD700',
+    borderWidth: 3,
   },
-  sectionTitle: {
+  topicCardSelected: {
+    borderColor: '#FF512F',
+    borderWidth: 4,
+    shadowColor: '#FF512F',
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  topicCardIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  topicCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    textAlign: 'center',
+  },
+  topicCardTitleSelected: {
+    color: '#FF512F',
+    fontWeight: '700',
+  },
+  modalSection: {
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  modalSectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1a1a1a',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  // Subject Pills
-  subjectContainer: {
-    marginTop: 8,
-  },
-  subjectContent: {
-    paddingRight: 20,
-  },
-  subjectPill: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  subjectPillSelected: {
-    backgroundColor: '#FF512F',
-    borderColor: '#FF512F',
-  },
-  subjectPillText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  subjectPillTextSelected: {
-    color: '#ffffff',
-  },
-  // Topic Input
-  inputContainer: {
+  difficultyToggle: {
     flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#f0f0f0',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e8e8e8',
+    padding: 4,
+    gap: 4,
   },
-  inputIcon: {
-    marginRight: 12,
-  },
-  textInput: {
+  difficultySegment: {
     flex: 1,
-    fontSize: 16,
-    color: '#1a1a1a',
-    fontWeight: '500',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  trendingTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-    marginTop: 4,
+  difficultySegmentActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#FF512F',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  // Trending Topics
-  topicsContainer: {
-    marginTop: 8,
-  },
-  topicsContent: {
-    paddingRight: 20,
-  },
-  topicTag: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#f0f0f0',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  topicTagSelected: {
-    backgroundColor: '#FF512F',
-    borderColor: '#FF512F',
-  },
-  topicTagText: {
+  difficultySegmentText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#666',
   },
-  topicTagTextSelected: {
-    color: '#ffffff',
+  difficultySegmentTextActive: {
+    color: '#FF512F',
+    fontWeight: '700',
   },
-  // Question Count Toggle
   questionCountToggle: {
     flexDirection: 'row',
-    backgroundColor: '#e8e8e8',
+    backgroundColor: '#f0f0f0',
     borderRadius: 12,
     padding: 4,
     gap: 4,
@@ -511,7 +720,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   questionCountSegmentText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#666',
   },
@@ -519,84 +728,53 @@ const styles = StyleSheet.create({
     color: '#FF512F',
     fontWeight: '700',
   },
-  // Difficulty Toggle
-  difficultyToggle: {
+  modalFooter: {
     flexDirection: 'row',
-    backgroundColor: '#e8e8e8',
-    borderRadius: 12,
-    padding: 4,
-    gap: 4,
+    padding: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    gap: 12,
   },
-  difficultySegment: {
+  modalCancelButton: {
     flex: 1,
     paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
+    backgroundColor: '#f0f0f0',
     borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
   },
-  difficultySegmentActive: {
+  modalCancelButtonText: {
+    color: '#666',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalStartButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    backgroundColor: '#FF512F',
+    borderRadius: 8,
+    alignItems: 'center',
+    shadowColor: '#FF512F',
     shadowOffset: {
       width: 0,
       height: 4,
     },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 8,
   },
-  difficultySegmentText: {
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  difficultyIndicator: {
-    position: 'absolute',
-    bottom: 4,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-  },
-  // Launch Button - Outside ScrollView, Absolutely Positioned
-  launchButtonContainer: {
-    position: 'absolute',
-    bottom: 100,
-    left: 20,
-    right: 20,
-    zIndex: 100,
-    alignItems: 'center',
-    maxWidth: 500, // Match card width
-    alignSelf: 'center',
+  modalStartButtonFull: {
     width: '100%',
   },
-  launchButton: {
-    width: '100%',
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  launchButtonGradient: {
-    paddingVertical: 20,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#FF6B35',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  launchButtonGradientDisabled: {
-    opacity: 0.5,
+  modalStartButtonDisabled: {
+    backgroundColor: '#ccc',
     shadowOpacity: 0,
     elevation: 0,
   },
-  launchButtonText: {
+  modalStartButtonText: {
     color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 2,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

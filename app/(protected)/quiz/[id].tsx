@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTimer } from '../../../hooks/useTimer';
 import { useQuizLogic } from '../../../hooks/useQuizLogic';
 import { QuizOption } from '../../../components/QuizOption';
-import { ProgressBar } from '../../../components/ProgressBar';
 import { DifficultyBadge } from '../../../components/DifficultyBadge';
 import { logger } from '../../../lib/logger';
 import { generateQuiz } from '../../../lib/api';
@@ -42,7 +41,7 @@ export default function QuizPage() {
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { timer, formatTime } = useTimer(true);
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, session } = useAuth();
 
   // Get topic, difficulty, and examType from params, with defaults
   const topic = params.topic || 'General Knowledge';
@@ -441,11 +440,65 @@ export default function QuizPage() {
     console.log('Current question:', currentQuestion);
   }, [currentQuestion]);
 
+  const handleReport = () => {
+    if (!session?.user || !currentQuestion) {
+      return;
+    }
+
+    Alert.alert(
+      'Report Question',
+      'Why are you reporting this question?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Wrong Answer',
+          onPress: () => submitReport('wrong_answer'),
+        },
+        {
+          text: 'Offensive / Bad Content',
+          onPress: () => submitReport('offensive'),
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const submitReport = async (type: string) => {
+    if (!session?.user || !currentQuestion) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('question_reports')
+        .insert({
+          user_id: session.user.id,
+          question_text: currentQuestion.question,
+          issue_type: type,
+        });
+
+      if (error) {
+        console.error('Error reporting question:', error);
+        Alert.alert('Error', 'Failed to submit report. Please try again.');
+      } else {
+        Alert.alert('Thanks', 'We will review this.');
+      }
+    } catch (err) {
+      console.error('Unexpected error reporting question:', err);
+      Alert.alert('Error', 'Failed to submit report. Please try again.');
+    }
+  };
+
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <ActivityIndicator size="large" />
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centerContent}>
+          <ActivityIndicator size="large" />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -479,7 +532,7 @@ export default function QuizPage() {
     
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={[styles.container, styles.centerContent, styles.errorContainer]}>
+        <View style={[styles.centerContent, styles.errorContainer]}>
           <View style={styles.errorIconContainer}>
             <Ionicons name="alert-circle" size={64} color="#FF6B35" />
           </View>
@@ -518,9 +571,11 @@ export default function QuizPage() {
 
   if (questions.length === 0) {
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorText}>No questions available</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centerContent}>
+          <Text style={styles.errorText}>No questions available</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -528,60 +583,81 @@ export default function QuizPage() {
   if (!currentQuestion) {
     console.error('currentQuestion is undefined:', { questions, currentQuestionIndex });
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorText}>Error loading question. Please try again.</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={fetchQuiz}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.centerContent}>
+          <Text style={styles.errorText}>Error loading question. Please try again.</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchQuiz}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
   console.log('Rendering quiz UI with question:', currentQuestionIndex + 1, 'of', questions.length);
 
-  return (
-    <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-      <View style={[styles.container, isMobile ? styles.containerMobile : styles.containerDesktop]}>
-        <View style={styles.header}>
-          <ProgressBar current={currentQuestionIndex + 1} total={questions.length} />
-          <View style={styles.timerContainer}>
-            <Text style={styles.timerText}>⏱️ {formatTime(timer)}</Text>
-          </View>
-        </View>
+  // Calculate progress percentage for simple progress bar
+  const currentProgressPercentage = ((currentQuestionIndex + 1) / questions.length) * 100;
 
-        <View style={styles.questionSection}>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      {/* Top Layer: Header */}
+      <View style={styles.header}>
+        {/* Left: Progress Bar */}
+        <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBarFill, { width: `${currentProgressPercentage}%` }]} />
+        </View>
+        {/* Right: Report Button */}
+        <TouchableOpacity
+          onPress={handleReport}
+          style={styles.reportButton}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="flag-outline" size={20} color="gray" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Middle Layer: Scrollable Content */}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.questionCard}>
           <DifficultyBadge difficulty={currentQuestion.difficulty} />
           <Text style={[styles.questionText, isMobile && styles.questionTextMobile]}>
             {currentQuestion.question}
           </Text>
-        </View>
 
-        <View style={styles.optionsContainer}>
-          {currentQuestion.options.map((option, index) => (
-            <QuizOption
-              key={index}
-              option={option}
-              optionIndex={index}
-              state={getOptionState(index)}
-              onPress={() => handleOptionSelect(index)}
-              disabled={hasUserAnswered}
-              fontSize={isMobile ? 16 : 18}
-            />
-          ))}
-        </View>
-
-        {hasUserAnswered && (
-          <View style={styles.explanationContainer}>
-            <Text style={styles.explanationTitle}>Explanation:</Text>
-            <Text style={styles.explanationText}>{currentQuestion.explanation}</Text>
+          <View style={styles.optionsContainer}>
+            {currentQuestion.options.map((option, index) => (
+              <QuizOption
+                key={index}
+                option={option}
+                optionIndex={index}
+                state={getOptionState(index)}
+                onPress={() => handleOptionSelect(index)}
+                disabled={hasUserAnswered}
+                fontSize={isMobile ? 16 : 18}
+              />
+            ))}
           </View>
-        )}
 
+          {hasUserAnswered && currentQuestion.explanation && (
+            <View style={styles.explanationContainer}>
+              <Text style={styles.explanationTitle}>Explanation:</Text>
+              <Text style={styles.explanationText}>{currentQuestion.explanation}</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Bottom Layer: Footer */}
+      <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.nextButton, (!hasUserAnswered || isSubmitting) && styles.nextButtonDisabled]}
+          style={[
+            styles.nextButton,
+            (!hasUserAnswered || isSubmitting) && styles.nextButtonDisabled,
+          ]}
           onPress={handleNext}
           disabled={!hasUserAnswered || isSubmitting}
         >
@@ -592,68 +668,78 @@ export default function QuizPage() {
             </View>
           ) : (
             <Text style={styles.nextButtonText}>
-              {isLastQuestion ? 'Finish Quiz' : 'Next Question'}
+              {isLastQuestion ? 'Finish Quiz' : 'Next'}
             </Text>
           )}
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  container: {
-    flex: 1,
-    paddingVertical: 30,
-    maxWidth: 900,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  containerMobile: {
-    paddingHorizontal: 20,
-  },
-  containerDesktop: {
-    paddingHorizontal: 40,
+    backgroundColor: '#F5F7FA',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 30,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  timerContainer: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+  progressBarContainer: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 3,
+    marginRight: 16,
+    overflow: 'hidden',
   },
-  timerText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#FF512F',
+    borderRadius: 3,
   },
-  questionSection: {
-    marginBottom: 30,
+  reportButton: {
+    padding: 8,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+  },
+  questionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   questionText: {
     fontSize: 24,
     fontWeight: '700',
     color: '#1a1a1a',
     lineHeight: 32,
+    marginTop: 16,
+    marginBottom: 24,
   },
   questionTextMobile: {
     fontSize: 20,
   },
   optionsContainer: {
+    gap: 12,
     marginBottom: 20,
   },
   explanationContainer: {
@@ -675,14 +761,21 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 24,
   },
+  footer: {
+    padding: 20,
+    backgroundColor: '#ffffff',
+    elevation: 10,
+    marginBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
   nextButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#FF512F',
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 30,
-    shadowColor: '#007AFF',
+    shadowColor: '#FF512F',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -720,10 +813,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontSize: 16,
     color: '#666',
-  },
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   errorContainer: {
     padding: 24,

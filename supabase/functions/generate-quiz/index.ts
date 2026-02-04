@@ -329,6 +329,96 @@ serve(async (req: Request) => {
       }
     }
 
+    // Freshness Check: Try to get random questions user hasn't seen
+    console.log('Checking for fresh questions...', { topic, difficulty: normalizedDifficulty, userId: user.id });
+    let existingQuestions: DbQuestion[] = [];
+    
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_random_questions', {
+        p_topic: topic,
+        p_difficulty: normalizedDifficulty,
+        p_user_id: user.id,
+        p_limit: questionCountValue,
+      });
+
+      if (rpcError) {
+        console.error('Error calling get_random_questions:', rpcError);
+        // Continue to AI generation if RPC fails
+      } else if (rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+        existingQuestions = rpcData;
+        console.log(`Found ${existingQuestions.length} fresh questions from database`);
+      }
+    } catch (rpcErr) {
+      console.error('Unexpected error calling get_random_questions:', rpcErr);
+      // Continue to AI generation if RPC fails
+    }
+
+    // If we have enough questions (5), use them directly (Instant Play)
+    if (existingQuestions.length === questionCountValue) {
+      console.log('Using existing questions (Instant Play)');
+      
+      // Create quiz record
+      const { data: quizData, error: quizError } = await supabase
+        .from('generated_quizzes')
+        .insert({
+          topic: topic,
+          difficulty: normalizedDifficulty,
+          user_id: user.id,
+        })
+        .select('id')
+        .single();
+
+      if (quizError || !quizData) {
+        console.error('Error creating quiz:', quizError);
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to create quiz record',
+            details: quizError?.message || 'Database error',
+          }),
+          {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
+          }
+        );
+      }
+
+      // Map database questions to API response format
+      const mappedQuestions = existingQuestions.map((q) => ({
+        id: q.id,
+        question: q.question_text,
+        options: q.options,
+        correctIndex: q.correct_index,
+        difficulty: q.difficulty,
+        explanation: q.explanation || '',
+      }));
+
+      // Update last_quiz_generated_at
+      await supabase
+        .from('profiles')
+        .update({ last_quiz_generated_at: new Date().toISOString() })
+        .eq('id', user.id);
+
+      return new Response(
+        JSON.stringify({
+          quizId: quizData.id,
+          questions: mappedQuestions,
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      );
+    }
+
+    // If we have fewer than required questions, generate new ones via AI
+    console.log(`Found ${existingQuestions.length} questions, generating ${questionCountValue - existingQuestions.length} new ones via AI`);
+
     // Get Gemini API key from environment
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
     if (!geminiApiKey) {

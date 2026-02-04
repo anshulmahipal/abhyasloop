@@ -3,6 +3,11 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { logger } from '../../lib/logger';
+import { useAuth } from '../../contexts/AuthContext';
+
+interface Question {
+  id: string;
+}
 
 interface QuizAttemptWithQuiz {
   id: string;
@@ -14,6 +19,7 @@ interface QuizAttemptWithQuiz {
   generated_quizzes: {
     topic: string;
     difficulty: 'easy' | 'medium' | 'hard';
+    questions: Question[];
   } | null;
 }
 
@@ -23,6 +29,7 @@ export default function ResultPage() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+  const { session } = useAuth();
 
   const [attemptData, setAttemptData] = useState<QuizAttemptWithQuiz | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,14 +47,17 @@ export default function ResultPage() {
         setIsLoading(true);
         setError(null);
 
-        // Fetch quiz_attempts row by ID and join generated_quizzes to get topic and difficulty
+        // Fetch quiz_attempts row by ID and join generated_quizzes to get topic, difficulty, and questions
         const { data, error: fetchError } = await supabase
           .from('quiz_attempts')
           .select(`
             *,
             generated_quizzes (
               topic,
-              difficulty
+              difficulty,
+              questions (
+                id
+              )
             )
           `)
           .eq('id', params.attemptId)
@@ -79,6 +89,57 @@ export default function ResultPage() {
 
     fetchResultData();
   }, [params.attemptId]);
+
+  // Mark questions as seen when the result screen loads
+  useEffect(() => {
+    const markQuestionsAsSeen = async () => {
+      if (!attemptData?.generated_quizzes?.questions || !session?.user) {
+        return;
+      }
+
+      const questions = attemptData.generated_quizzes.questions;
+      
+      // Filter questions to only include those with valid UUID ids
+      // UUIDs are strings with format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 chars)
+      const validQuestions = questions.filter((q) => {
+        return q.id && 
+               typeof q.id === 'string' && 
+               q.id.length === 36 && 
+               /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q.id);
+      });
+
+      if (validQuestions.length === 0) {
+        return;
+      }
+
+      // Prepare array of objects for upsert
+      const seenData = validQuestions.map((q) => ({
+        user_id: session.user.id,
+        question_id: q.id,
+      }));
+
+      try {
+        const { error: upsertError } = await supabase
+          .from('user_seen_questions')
+          .upsert(seenData, { ignoreDuplicates: true });
+
+        if (upsertError) {
+          console.error('Error marking questions as seen:', upsertError);
+          logger.error('Failed to mark questions as seen', upsertError);
+        } else {
+          logger.info('Questions marked as seen', {
+            count: seenData.length,
+            attemptId: params.attemptId,
+          });
+        }
+      } catch (err) {
+        console.error('Unexpected error marking questions as seen:', err);
+        logger.error('Failed to mark questions as seen', err);
+      }
+    };
+
+    markQuestionsAsSeen();
+  }, [attemptData, session?.user?.id, params.attemptId]);
 
   const handleBackToDashboard = () => {
     logger.userAction('Back to Dashboard', {}, {});
