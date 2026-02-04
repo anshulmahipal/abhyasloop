@@ -152,6 +152,11 @@ export default function SettingsPage() {
         {renderSection('Support', (
           <>
             {renderListItem(
+              'flag-outline',
+              'Reported Questions',
+              () => router.push('/(protected)/settings/reports')
+            )}
+            {renderListItem(
               'mail-outline',
               'Send Feedback',
               handleSendFeedback

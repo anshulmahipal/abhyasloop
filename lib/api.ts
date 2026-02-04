@@ -129,3 +129,126 @@ export async function generateQuiz(
     throw new Error('An unexpected error occurred while generating the quiz. Please try again.');
   }
 }
+
+export interface GenerateMockTestResponse {
+  success: boolean;
+  quizId: string;
+  questions: Array<{
+    id: string;
+    question: string;
+    options: string[];
+    correctIndex: number;
+    difficulty: 'easy' | 'medium' | 'hard';
+    explanation: string;
+  }>;
+}
+
+/**
+ * Generates a mock test using the generate-mock-test edge function
+ * @param subject - The subject/exam name (e.g., "Mathematics")
+ * @param subTopics - Array of sub-topics to include in the mock test
+ * @param difficulty - The difficulty level: "easy", "medium", or "hard"
+ * @returns Promise with quiz data including questions and quiz ID
+ * @throws Error with friendly message if the function fails
+ */
+export async function generateMockTest(
+  subject: string,
+  subTopics: string[],
+  difficulty: 'easy' | 'medium' | 'hard'
+): Promise<GenerateMockTestResponse> {
+  // Validate inputs
+  if (!subject || typeof subject !== 'string' || subject.trim() === '') {
+    throw new Error('Subject is required and must be a non-empty string');
+  }
+
+  if (!Array.isArray(subTopics) || subTopics.length === 0) {
+    throw new Error('Sub-topics must be a non-empty array');
+  }
+
+  if (!['easy', 'medium', 'hard'].includes(difficulty.toLowerCase())) {
+    throw new Error('Difficulty must be one of: easy, medium, hard');
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('generate-mock-test', {
+      body: {
+        subject: subject.trim(),
+        subTopics: subTopics,
+        difficulty: difficulty.toLowerCase(),
+      },
+    });
+
+    if (error) {
+      console.error('Supabase function error:', error);
+      
+      // Check for 429 status code (rate limit)
+      const isRateLimit = error.status === 429 || 
+                         error.message?.includes('Please wait') ||
+                         error.message?.includes('active quiz');
+      
+      // Extract friendly error message
+      let errorMessage = 'Failed to generate mock test. Please try again.';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.context?.msg) {
+        errorMessage = error.context.msg;
+      } else if (typeof error === 'object' && error !== null) {
+        const errorObj = error as any;
+        if (errorObj.details) {
+          errorMessage = errorObj.details;
+        } else if (errorObj.error) {
+          errorMessage = typeof errorObj.error === 'string' 
+            ? errorObj.error 
+            : errorObj.error?.message || errorMessage;
+        }
+      }
+      
+      // Create error with rate limit flag
+      const rateLimitError = new Error(errorMessage);
+      (rateLimitError as any).isRateLimit = isRateLimit;
+      throw rateLimitError;
+    }
+
+    // Validate response structure
+    if (!data) {
+      throw new Error('No data returned from mock test generation service');
+    }
+
+    // Check if response contains an error field (function returned 200 but with error)
+    if (typeof data === 'object' && 'error' in data) {
+      const errorData = data as { error: string; details?: string };
+      const errorMessage = errorData.details || errorData.error || 'Failed to generate mock test';
+      
+      // Check for rate limit indicators in error message
+      const isRateLimit = errorMessage.includes('Please wait') || 
+                         errorMessage.includes('active quiz') ||
+                         errorMessage.includes('1 minute');
+      
+      const rateLimitError = new Error(errorMessage);
+      (rateLimitError as any).isRateLimit = isRateLimit;
+      throw rateLimitError;
+    }
+
+    // Validate response format
+    if (!data.success || !Array.isArray(data.questions)) {
+      throw new Error('Invalid response format from mock test generation service');
+    }
+
+    // Validate questions array is not empty
+    if (data.questions.length === 0) {
+      throw new Error('No questions were generated. Please try again.');
+    }
+
+    return data as GenerateMockTestResponse;
+  } catch (error) {
+    // Re-throw if it's already a friendly Error
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    // Handle unexpected error types
+    console.error('Unexpected error in generateMockTest:', error);
+    throw new Error('An unexpected error occurred while generating the mock test. Please try again.');
+  }
+}

@@ -148,6 +148,13 @@ export default function ProtectedLayout() {
           headerShown: false,
         }}
       />
+      <Tabs.Screen
+        name="settings/reports"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
     </Tabs>
   );
 }

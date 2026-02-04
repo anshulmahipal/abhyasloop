@@ -665,7 +665,12 @@ export default function DashboardPage() {
                   const scoreColor = getScoreColor(attempt.score, attempt.total_questions);
                   
                   return (
-                    <View key={attempt.id} style={styles.activityItem}>
+                    <TouchableOpacity
+                      key={attempt.id}
+                      style={styles.activityItem}
+                      onPress={() => router.push(`/(protected)/quiz/review/${attempt.id}`)}
+                      activeOpacity={0.7}
+                    >
                       <View style={[styles.activityDot, { backgroundColor: scoreColor }]} />
                       <View style={styles.activityContent}>
                         <Text style={styles.activityTopic}>
@@ -680,7 +685,7 @@ export default function DashboardPage() {
                           {attempt.score}/{attempt.total_questions}
                         </Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>

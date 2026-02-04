@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, useWindowDimensions, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { logger } from '../../lib/logger';
@@ -34,6 +34,9 @@ export default function ResultPage() {
   const [attemptData, setAttemptData] = useState<QuizAttemptWithQuiz | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
+  const [coinsEarned, setCoinsEarned] = useState(0);
+  const [xpEarned, setXpEarned] = useState(0);
 
   useEffect(() => {
     const fetchResultData = async () => {
@@ -90,6 +93,60 @@ export default function ResultPage() {
     fetchResultData();
   }, [params.attemptId]);
 
+  // Calculate rewards and save progress when attemptData is loaded
+  useEffect(() => {
+    if (!attemptData || !session?.user || isSaved) {
+      return;
+    }
+
+    const calculateAndSaveRewards = async () => {
+      // Calculate rewards
+      const correctCount = attemptData.score;
+      const calculatedCoins = correctCount * 10;
+      const calculatedXp = correctCount * 20;
+
+      setCoinsEarned(calculatedCoins);
+      setXpEarned(calculatedXp);
+
+      // Save progress
+      await saveProgress(calculatedCoins, calculatedXp);
+    };
+
+    calculateAndSaveRewards();
+  }, [attemptData, session?.user?.id, isSaved]);
+
+  const saveProgress = async (coins: number, xp: number) => {
+    if (!session?.user || isSaved) {
+      return;
+    }
+
+    try {
+      const { error: rpcError } = await supabase.rpc('finish_quiz', {
+        p_user_id: session.user.id,
+        p_coins_earned: coins,
+        p_xp_earned: xp,
+      });
+
+      if (rpcError) {
+        console.error('Error saving progress:', rpcError);
+        logger.error('Failed to save progress', rpcError);
+        // Don't show error to user, just log it
+        return;
+      }
+
+      setIsSaved(true);
+      Alert.alert('Progress Saved!', `+${coins} Coins`, [{ text: 'OK' }]);
+      logger.info('Progress saved successfully', {
+        coinsEarned: coins,
+        xpEarned: xp,
+        attemptId: params.attemptId,
+      });
+    } catch (err) {
+      console.error('Unexpected error saving progress:', err);
+      logger.error('Failed to save progress', err);
+    }
+  };
+
   // Mark questions as seen when the result screen loads
   useEffect(() => {
     const markQuestionsAsSeen = async () => {
@@ -141,14 +198,14 @@ export default function ResultPage() {
     markQuestionsAsSeen();
   }, [attemptData, session?.user?.id, params.attemptId]);
 
-  const handleBackToDashboard = () => {
-    logger.userAction('Back to Dashboard', {}, {});
+  const handleBackToHome = () => {
+    logger.userAction('Back to Home', {}, {});
     router.replace('/(protected)/dashboard');
   };
 
-  const handleTryAnotherQuiz = () => {
-    logger.userAction('Try Another Quiz', {}, {});
-    router.replace('/(protected)/quiz/config');
+  const handleReviewSolutions = () => {
+    logger.userAction('Review Solutions', {}, {});
+    router.push(`/(protected)/quiz/review/${params.attemptId}`);
   };
 
   if (isLoading) {
@@ -166,9 +223,9 @@ export default function ResultPage() {
         <Text style={styles.errorText}>⚠️ {error || 'Failed to load results'}</Text>
         <TouchableOpacity
           style={styles.button}
-          onPress={handleBackToDashboard}
+          onPress={handleBackToHome}
         >
-          <Text style={styles.buttonText}>Back to Dashboard</Text>
+          <Text style={styles.buttonText}>Back to Home</Text>
         </TouchableOpacity>
       </View>
     );
@@ -192,18 +249,33 @@ export default function ResultPage() {
 
         {/* Score Card */}
         <View style={styles.scoreCard}>
-          {/* Big, bold display of score / total_questions */}
+          {/* Big, bold display of percentage */}
           <Text style={styles.scoreDisplay}>
-            {attemptData.score} / {attemptData.total_questions}
+            {Math.round(percentage)}%
           </Text>
 
-          {/* Percentage */}
-          <Text style={styles.percentage}>{Math.round(percentage)}%</Text>
+          {/* Score / Total */}
+          <Text style={styles.scoreSubtext}>
+            {attemptData.score} / {attemptData.total_questions} correct
+          </Text>
 
           {/* Message */}
           {message && (
             <Text style={styles.message}>{message}</Text>
           )}
+        </View>
+
+        {/* Rewards Card */}
+        <View style={styles.rewardsCard}>
+          <Text style={styles.rewardsTitle}>Rewards</Text>
+          <View style={styles.rewardRow}>
+            <Text style={styles.rewardIcon}>🪙</Text>
+            <Text style={styles.rewardText}>+{coinsEarned} Coins</Text>
+          </View>
+          <View style={styles.rewardRow}>
+            <Text style={styles.rewardIcon}>⚡</Text>
+            <Text style={styles.rewardText}>+{xpEarned} XP</Text>
+          </View>
         </View>
 
         {/* Quiz Details */}
@@ -228,26 +300,16 @@ export default function ResultPage() {
         <View style={styles.actionsContainer}>
           <TouchableOpacity
             style={[styles.button, styles.buttonSecondary]}
-            onPress={handleBackToDashboard}
+            onPress={handleReviewSolutions}
           >
-            <Text style={styles.buttonSecondaryText}>Back to Dashboard</Text>
+            <Text style={styles.buttonSecondaryText}>Review Solutions</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.button}
-            onPress={() => {
-              logger.userAction('Review Answers', {}, {});
-              router.push(`/(protected)/quiz/review/${params.attemptId}`);
-            }}
+            onPress={handleBackToHome}
           >
-            <Text style={styles.buttonText}>Review Answers</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.button}
-            onPress={handleTryAnotherQuiz}
-          >
-            <Text style={styles.buttonText}>Try Another Quiz</Text>
+            <Text style={styles.buttonText}>Back to Home</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -308,12 +370,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#007AFF',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
-  percentage: {
-    fontSize: 48,
-    fontWeight: '600',
-    color: '#333',
+  scoreSubtext: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#666',
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -322,6 +384,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#4CAF50',
     textAlign: 'center',
+  },
+  rewardsCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  rewardsTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 16,
+  },
+  rewardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  rewardIcon: {
+    fontSize: 24,
+  },
+  rewardText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1a1a1a',
   },
   detailsCard: {
     backgroundColor: '#ffffff',

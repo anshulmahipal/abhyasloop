@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, ActivityIndicator, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useTimer } from '../../../hooks/useTimer';
@@ -31,6 +31,7 @@ export default function QuizPage() {
     examType?: string;
   }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
@@ -40,6 +41,7 @@ export default function QuizPage() {
   const [quizId, setQuizId] = useState<string | null>(null);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReported, setIsReported] = useState(false);
   const { timer, formatTime } = useTimer(true);
   const { user, profile, refreshProfile, session } = useAuth();
 
@@ -372,6 +374,29 @@ export default function QuizPage() {
     }
   };
 
+  // Hide tab bar and header when quiz screen is active
+  useEffect(() => {
+    // Get parent tab navigator to hide tab bar and header
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.setOptions({
+        headerShown: false,
+        tabBarStyle: { display: 'none' },
+      });
+    }
+
+    // Restore tab bar and header when component unmounts
+    return () => {
+      const parentNav = navigation.getParent();
+      if (parentNav) {
+        parentNav.setOptions({
+          headerShown: undefined,
+          tabBarStyle: undefined,
+        });
+      }
+    };
+  }, [navigation]);
+
   // Reset userAnswers when questions change
   useEffect(() => {
     if (questions.length > 0) {
@@ -440,7 +465,27 @@ export default function QuizPage() {
     console.log('Current question:', currentQuestion);
   }, [currentQuestion]);
 
+  const handleBack = () => {
+    Alert.alert(
+      'Quit Quiz?',
+      'Progress will be lost',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Quit',
+          style: 'destructive',
+          onPress: () => router.back(),
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   const handleReport = () => {
+    console.log('Flag pressed');
     if (!session?.user || !currentQuestion) {
       return;
     }
@@ -484,7 +529,12 @@ export default function QuizPage() {
         console.error('Error reporting question:', error);
         Alert.alert('Error', 'Failed to submit report. Please try again.');
       } else {
+        setIsReported(true);
         Alert.alert('Thanks', 'We will review this.');
+        logger.info('Question reported', {
+          questionId: currentQuestion.id,
+          issueType: type,
+        });
       }
     } catch (err) {
       console.error('Unexpected error reporting question:', err);
@@ -603,25 +653,34 @@ export default function QuizPage() {
   const currentProgressPercentage = ((currentQuestionIndex + 1) / questions.length) * 100;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       {/* Top Layer: Header */}
       <View style={styles.header}>
-        {/* Left: Progress Bar */}
+        {/* Progress Bar */}
         <View style={styles.progressBarContainer}>
           <View style={[styles.progressBarFill, { width: `${currentProgressPercentage}%` }]} />
         </View>
-        {/* Right: Report Button */}
+
+        {/* Report Button */}
         <TouchableOpacity
           onPress={handleReport}
           style={styles.reportButton}
           activeOpacity={0.7}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
-          <Ionicons name="flag-outline" size={20} color="gray" />
+          <Ionicons 
+            name={isReported ? "flag" : "flag-outline"} 
+            size={20} 
+            color={isReported ? "#FF3B30" : "gray"} 
+          />
         </TouchableOpacity>
       </View>
 
       {/* Middle Layer: Scrollable Content */}
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
+      >
         <View style={styles.questionCard}>
           <DifficultyBadge difficulty={currentQuestion.difficulty} />
           <Text style={[styles.questionText, isMobile && styles.questionTextMobile]}>
@@ -651,28 +710,30 @@ export default function QuizPage() {
         </View>
       </ScrollView>
 
-      {/* Bottom Layer: Footer */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={[
-            styles.nextButton,
-            (!hasUserAnswered || isSubmitting) && styles.nextButtonDisabled,
-          ]}
-          onPress={handleNext}
-          disabled={!hasUserAnswered || isSubmitting}
-        >
-          {isSubmitting ? (
-            <View style={styles.submittingContainer}>
-              <ActivityIndicator color="#ffffff" />
-              <Text style={styles.submittingText}>Saving results...</Text>
-            </View>
-          ) : (
-            <Text style={styles.nextButtonText}>
-              {isLastQuestion ? 'Finish Quiz' : 'Next'}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      {/* Bottom Layer: Footer (Absolute Positioned) */}
+      {selectedOptionIndex !== null && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[
+              styles.nextButton,
+              (!hasUserAnswered || isSubmitting) && styles.nextButtonDisabled,
+            ]}
+            onPress={handleNext}
+            disabled={!hasUserAnswered || isSubmitting}
+          >
+            {isSubmitting ? (
+              <View style={styles.submittingContainer}>
+                <ActivityIndicator color="#ffffff" />
+                <Text style={styles.submittingText}>Saving results...</Text>
+              </View>
+            ) : (
+              <Text style={styles.nextButtonText}>
+                {isLastQuestion ? 'Finish Quiz' : 'Next Question'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -691,6 +752,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
+    zIndex: 10,
+    elevation: 10,
   },
   progressBarContainer: {
     flex: 1,
@@ -707,6 +770,7 @@ const styles = StyleSheet.create({
   },
   reportButton: {
     padding: 8,
+    zIndex: 11,
   },
   scrollView: {
     flex: 1,
@@ -762,12 +826,22 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 20,
     backgroundColor: '#ffffff',
-    elevation: 10,
-    marginBottom: 20,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 10,
   },
   nextButton: {
     backgroundColor: '#FF512F',

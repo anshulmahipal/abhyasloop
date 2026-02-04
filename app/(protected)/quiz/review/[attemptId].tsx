@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, useWindowDimensions, Alert, Animated } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { supabase } from '../../../../lib/supabase';
 import { logger } from '../../../../lib/logger';
 import { DifficultyBadge } from '../../../../components/DifficultyBadge';
@@ -39,6 +39,7 @@ interface AIExplanation {
 export default function ReviewPage() {
   const params = useLocalSearchParams<{ attemptId?: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
@@ -123,6 +124,52 @@ export default function ReviewPage() {
 
     fetchReviewData();
   }, [params.attemptId]);
+
+  // Debug logging - must be before any conditional returns
+  useEffect(() => {
+    if (attemptData?.generated_quizzes?.questions && attemptData.generated_quizzes.questions.length > 0) {
+      const currentQuestion = attemptData.generated_quizzes.questions[currentQuestionIndex];
+      const userAnswers = attemptData.user_answers || [];
+      const userSelectedIndex = currentQuestionIndex < userAnswers.length 
+        ? (userAnswers[currentQuestionIndex] === -1 ? null : userAnswers[currentQuestionIndex])
+        : null;
+      const correctIndex = currentQuestion.correct_index;
+      const isCorrect = userSelectedIndex !== null && userSelectedIndex === correctIndex;
+      const shouldShowAICoach = !isCorrect;
+
+      console.log('Review Debug:', {
+        questionId: currentQuestion.id,
+        userSelectedIndex,
+        correctIndex,
+        isCorrect,
+        shouldShowAICoach,
+        hasExplanation: !!explanations[currentQuestion.id],
+        userAnswersLength: userAnswers.length,
+        currentQuestionIndex,
+      });
+    }
+  }, [attemptData, currentQuestionIndex, explanations]);
+
+  // Hide tab bar when review screen is active
+  useEffect(() => {
+    // Get parent tab navigator to hide tab bar
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.setOptions({
+        tabBarStyle: { display: 'none' },
+      });
+    }
+
+    // Restore tab bar when component unmounts
+    return () => {
+      const parentNav = navigation.getParent();
+      if (parentNav) {
+        parentNav.setOptions({
+          tabBarStyle: undefined,
+        });
+      }
+    };
+  }, [navigation]);
 
   const handleClose = () => {
     logger.userAction('Close Review', {}, {});
@@ -245,20 +292,6 @@ export default function ReviewPage() {
   const correctIndex = currentQuestion.correct_index;
   const isCorrect = userSelectedIndex !== null && userSelectedIndex === correctIndex;
   const shouldShowAICoach = !isCorrect; // Show for wrong answers or unanswered questions
-
-  // Debug logging
-  useEffect(() => {
-    console.log('Review Debug:', {
-      questionId: currentQuestion.id,
-      userSelectedIndex,
-      correctIndex,
-      isCorrect,
-      shouldShowAICoach,
-      hasExplanation: !!explanations[currentQuestion.id],
-      userAnswersLength: userAnswers.length,
-      currentQuestionIndex,
-    });
-  }, [currentQuestion.id, userSelectedIndex, correctIndex, isCorrect, shouldShowAICoach, explanations, userAnswers.length, currentQuestionIndex]);
 
   const getOptionState = (optionIndex: number): 'default' | 'user-selected-correct' | 'user-selected-incorrect' | 'correct' => {
     // Always highlight correct answer in green
