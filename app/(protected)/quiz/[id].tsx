@@ -41,7 +41,8 @@ export default function QuizPage() {
   const [quizId, setQuizId] = useState<string | null>(null);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isReported, setIsReported] = useState(false);
+  const [reportedQuestions, setReportedQuestions] = useState<Set<string>>(new Set());
+  const [startTime, setStartTime] = useState<number>(Date.now());
   const { timer, formatTime } = useTimer(true);
   const { user, profile, refreshProfile, session } = useAuth();
 
@@ -126,6 +127,8 @@ export default function QuizPage() {
       // Initialize userAnswers array: one slot per question, all null (unanswered)
       // This array will track user's selected option indices (0-3) as they answer questions
       setUserAnswers(new Array(mappedQuestions.length).fill(null));
+      // Initialize startTime for the first question
+      setStartTime(Date.now());
       console.log('Questions state set, count:', mappedQuestions.length);
       logger.info('Quiz loaded successfully', { 
         questionCount: mappedQuestions.length,
@@ -364,8 +367,14 @@ export default function QuizPage() {
         });
       }
 
+      // Prepare time_taken data for result screen
+      // Create array of time_taken values matching question order
+      const timeTakenArray = questions.map(q => q.time_taken || 0);
+      
       // Navigate to result screen immediately (mistakes sync in background)
-      router.replace(`/(protected)/result?attemptId=${attemptData.id}`);
+      // Pass time_taken data as JSON string in URL params
+      const timeTakenParam = encodeURIComponent(JSON.stringify(timeTakenArray));
+      router.replace(`/(protected)/result?attemptId=${attemptData.id}&timeTaken=${timeTakenParam}`);
     } catch (err) {
       logger.error('Quiz submission error', err);
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred.';
@@ -432,11 +441,14 @@ export default function QuizPage() {
   /**
    * Tracks user's selected option index for every question.
    * Updates the userAnswers state array when user selects an option.
-   * Also updates the questions array with user_answer property for full context.
+   * Also updates the questions array with user_answer and time_taken properties for full context.
    * This data will be saved to the database as user_answers column when quiz is submitted.
    */
   const handleOptionSelect = (optionIndex: number) => {
     originalHandleOptionSelect(optionIndex);
+    
+    // Calculate time taken in seconds
+    const duration = Math.floor((Date.now() - startTime) / 1000);
     
     // Capture the selected option index (0-3) for the current question
     // Store in userAnswers array which will be saved to DB as user_answers column
@@ -444,11 +456,12 @@ export default function QuizPage() {
     newAnswers[currentQuestionIndex] = optionIndex;
     setUserAnswers(newAnswers);
     
-    // Update questions array with user_answer property for full context
+    // Update questions array with user_answer and time_taken properties for full context
     const updatedQuestions = [...questions];
     updatedQuestions[currentQuestionIndex] = {
       ...updatedQuestions[currentQuestionIndex],
       user_answer: optionIndex,
+      time_taken: duration,
     };
     setQuestions(updatedQuestions);
   };
@@ -469,10 +482,45 @@ export default function QuizPage() {
     }
   };
 
+  // Reset startTime whenever currentQuestionIndex changes (on load/next question)
+  useEffect(() => {
+    setStartTime(Date.now());
+  }, [currentQuestionIndex]);
+
   // Debug: Log current question
   useEffect(() => {
     console.log('Current question:', currentQuestion);
   }, [currentQuestion]);
+
+  // Check if current question is already reported
+  useEffect(() => {
+    const checkIfReported = async () => {
+      if (!session?.user || !currentQuestion) {
+        return;
+      }
+
+      try {
+        const questionKey = String(currentQuestion.id);
+        const { data, error } = await supabase
+          .from('question_reports')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .eq('question_text', currentQuestion.question)
+          .limit(1)
+          .single();
+
+        if (!error && data) {
+          // Question was already reported
+          setReportedQuestions((prev) => new Set(prev).add(questionKey));
+        }
+      } catch (err) {
+        // If no report found, that's fine - question is not reported
+        console.log('Question not previously reported');
+      }
+    };
+
+    checkIfReported();
+  }, [currentQuestion?.id, currentQuestion?.question, session?.user]);
 
   const handleBack = () => {
     Alert.alert(
@@ -496,6 +544,14 @@ export default function QuizPage() {
   const handleReport = () => {
     console.log('Flag pressed');
     if (!session?.user || !currentQuestion) {
+      return;
+    }
+
+    const questionKey = String(currentQuestion.id);
+    const isAlreadyReported = reportedQuestions.has(questionKey);
+
+    if (isAlreadyReported) {
+      Alert.alert('Already Reported', 'You have already reported this question.');
       return;
     }
 
@@ -525,6 +581,17 @@ export default function QuizPage() {
       return;
     }
 
+    const questionKey = String(currentQuestion.id);
+    console.log('Submitting report for question:', questionKey, 'ID type:', typeof currentQuestion.id);
+    console.log('Current reportedQuestions before update:', Array.from(reportedQuestions));
+    
+    // Optimistically update UI immediately - fill the flag icon
+    // Create a completely new Set to ensure React detects the change
+    const updatedSet = new Set(reportedQuestions);
+    updatedSet.add(questionKey);
+    console.log('Updated Set:', Array.from(updatedSet));
+    setReportedQuestions(updatedSet);
+
     try {
       const { error } = await supabase
         .from('question_reports')
@@ -536,10 +603,17 @@ export default function QuizPage() {
 
       if (error) {
         console.error('Error reporting question:', error);
+        // Revert optimistic update on error - remove from the updated set
+        const revertedSet = new Set(updatedSet);
+        revertedSet.delete(questionKey);
+        setReportedQuestions(revertedSet);
         Alert.alert('Error', 'Failed to submit report. Please try again.');
       } else {
-        setIsReported(true);
-        Alert.alert('Thanks', 'We will review this.');
+        console.log('Report submitted successfully');
+        // Show alert after a brief delay to allow UI to update
+        setTimeout(() => {
+          Alert.alert('Thanks', 'We will review this.');
+        }, 100);
         logger.info('Question reported', {
           questionId: currentQuestion.id,
           issueType: type,
@@ -547,6 +621,10 @@ export default function QuizPage() {
       }
     } catch (err) {
       console.error('Unexpected error reporting question:', err);
+      // Revert optimistic update on error - remove from the updated set
+      const revertedSet = new Set(updatedSet);
+      revertedSet.delete(questionKey);
+      setReportedQuestions(revertedSet);
       Alert.alert('Error', 'Failed to submit report. Please try again.');
     }
   };
@@ -678,9 +756,10 @@ export default function QuizPage() {
           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
           <Ionicons 
-            name={isReported ? "flag" : "flag-outline"} 
+            name={currentQuestion && reportedQuestions.has(String(currentQuestion.id)) ? "flag" : "flag-outline"} 
             size={20} 
-            color={isReported ? "#FF3B30" : "gray"} 
+            color={currentQuestion && reportedQuestions.has(String(currentQuestion.id)) ? "#FF3B30" : "gray"} 
+            key={`flag-${currentQuestion?.id}-${Array.from(reportedQuestions).join(',')}`}
           />
         </TouchableOpacity>
       </View>

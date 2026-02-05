@@ -482,6 +482,9 @@ export default function DashboardPage() {
     );
   };
 
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
+
   const renderHeader = () => {
     return (
       <View style={styles.headerSection}>
@@ -490,6 +493,42 @@ export default function DashboardPage() {
         </Text>
         <Text style={styles.headerSubtext}>Ready to learn something new?</Text>
       </View>
+    );
+  };
+
+  const renderWeeklyMockCard = () => {
+    return (
+      <TouchableOpacity
+        style={styles.weeklyMockCard}
+        onPress={() => router.push('/(protected)/quiz/config?mode=weekly')}
+        activeOpacity={0.9}
+      >
+        <LinearGradient
+          colors={['#2C3E50', '#34495E']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.weeklyMockGradient}
+        >
+          <View style={[styles.weeklyMockContent, isMobile && styles.weeklyMockContentMobile]}>
+            <View style={styles.weeklyMockLeft}>
+              <View style={styles.weeklyMockIconContainer}>
+                <Text style={styles.weeklyMockIcon}>🏆</Text>
+              </View>
+              <View style={styles.weeklyMockTextContainer}>
+                <Text style={styles.weeklyMockTitle}>All India Weekly Mock</Text>
+                <Text style={styles.weeklyMockSubtitle}>Live Now • Ends in 12h</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.weeklyMockButton, isMobile && styles.weeklyMockButtonMobile]}
+              onPress={() => router.push('/(protected)/quiz/config?mode=weekly')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.weeklyMockButtonText}>Enter Arena</Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
     );
   };
 
@@ -623,9 +662,6 @@ export default function DashboardPage() {
     );
   };
 
-  const { width } = useWindowDimensions();
-  const isMobile = width < 768;
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.mainContainer}>
@@ -639,6 +675,9 @@ export default function DashboardPage() {
             {/* Header Section */}
             {renderHeader()}
 
+            {/* Weekly Live Mock Card */}
+            {renderWeeklyMockCard()}
+
             {/* Hero Widgets */}
             {renderHeroWidgets()}
 
@@ -646,7 +685,14 @@ export default function DashboardPage() {
             {renderPerformanceSection()}
 
             {/* Recent Activity */}
-            <Text style={styles.sectionTitle}>Recent History</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/(protected)/history')}
+              activeOpacity={0.7}
+              style={styles.sectionTitleContainer}
+            >
+              <Text style={styles.sectionTitle}>Recent History</Text>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
             {isLoading ? (
               <SkeletonLoader />
             ) : error ? (
@@ -806,11 +852,16 @@ const styles = StyleSheet.create({
   performanceSection: {
     marginBottom: 32,
   },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1a1a1a',
-    marginBottom: 16,
   },
   performanceRow: {
     flexDirection: 'row',
@@ -1100,5 +1151,73 @@ const styles = StyleSheet.create({
   dropdownOptionTextSelected: {
     color: '#ffffff',
     fontWeight: '600',
+  },
+  weeklyMockCard: {
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  weeklyMockGradient: {
+    padding: 20,
+    borderRadius: 16,
+  },
+  weeklyMockContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  weeklyMockLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  weeklyMockIconContainer: {
+    marginRight: 16,
+  },
+  weeklyMockIcon: {
+    fontSize: 32,
+  },
+  weeklyMockTextContainer: {
+    flex: 1,
+  },
+  weeklyMockTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  weeklyMockSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#E8E8E8',
+  },
+  weeklyMockButton: {
+    backgroundColor: '#ffffff',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginLeft: 16,
+  },
+  weeklyMockButtonText: {
+    color: '#2C3E50',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  weeklyMockContentMobile: {
+    flexDirection: 'column',
+    gap: 16,
+  },
+  weeklyMockButtonMobile: {
+    width: '100%',
+    marginLeft: 0,
+    alignItems: 'center',
   },
 });

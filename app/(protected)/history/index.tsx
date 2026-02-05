@@ -71,11 +71,31 @@ export default function HistoryPage() {
       if (fetchError) {
         console.error('Error fetching quiz history:', fetchError);
         logger.error('Failed to fetch quiz history', fetchError);
-        throw new Error('Failed to load quiz history');
+        
+        // Provide more specific error messages
+        let errorMessage = 'Failed to load quiz history';
+        if (fetchError.code === 'PGRST116') {
+          errorMessage = 'No quiz history found';
+        } else if (fetchError.message?.includes('network') || fetchError.message?.includes('fetch')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (fetchError.message?.includes('timeout')) {
+          errorMessage = 'Request timed out. Please try again.';
+        } else if (fetchError.message) {
+          errorMessage = `Error: ${fetchError.message}`;
+        }
+        
+        throw new Error(errorMessage);
       }
 
-      setHistoryItems((data || []) as QuizAttemptWithQuiz[]);
-      logger.info('Quiz history loaded', { count: data?.length || 0 });
+      // Handle case where data is null or undefined
+      if (!data) {
+        setHistoryItems([]);
+        logger.info('Quiz history loaded', { count: 0 });
+        return;
+      }
+
+      setHistoryItems(data as QuizAttemptWithQuiz[]);
+      logger.info('Quiz history loaded', { count: data.length });
     } catch (err) {
       logger.error('Failed to load quiz history', err);
       const errorMessage = err instanceof Error
@@ -124,7 +144,7 @@ export default function HistoryPage() {
     return (
       <TouchableOpacity
         style={[styles.card, isLastItem && styles.cardLast]}
-        onPress={() => router.push(`/(protected)/history/${item.id}`)}
+        onPress={() => router.push(`/(protected)/quiz/review/${item.id}`)}
         activeOpacity={0.7}
       >
         {/* Row 1: Topic Name and Date */}
@@ -185,11 +205,17 @@ export default function HistoryPage() {
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color="#FF512F" />
           <Text style={styles.errorText}>⚠️ {error}</Text>
+          <Text style={styles.errorSubtext}>
+            We couldn't load your quiz history. Please check your connection and try again.
+          </Text>
           <TouchableOpacity
             style={styles.retryButton}
             onPress={fetchHistory}
+            activeOpacity={0.8}
           >
+            <Ionicons name="refresh" size={20} color="#ffffff" style={{ marginRight: 8 }} />
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -247,16 +273,36 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600',
     color: '#d32f2f',
     textAlign: 'center',
-    marginBottom: 20,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 20,
+    lineHeight: 20,
   },
   retryButton: {
     backgroundColor: '#FF512F',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#FF512F',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   retryButtonText: {
     color: '#ffffff',

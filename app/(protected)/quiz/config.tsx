@@ -144,6 +144,7 @@ export default function QuizConfigPage() {
 
   // Error state
   const [error, setError] = useState<string | null>(null);
+  const [showErrorScreen, setShowErrorScreen] = useState(false);
 
   // Community Rescue modal state
   const [showCommunityRescueModal, setShowCommunityRescueModal] = useState(false);
@@ -269,6 +270,9 @@ export default function QuizConfigPage() {
       return;
     }
 
+    // Set generating state immediately for UI feedback
+    setIsGenerating(true);
+
     // Disable button for 2 seconds to prevent double-taps
     setIsButtonDisabled(true);
     if (buttonDisableTimeoutRef.current) {
@@ -280,8 +284,6 @@ export default function QuizConfigPage() {
     }, 2000);
 
     try {
-      setIsGenerating(true);
-      setModalVisible(false);
       setShowCommunityRescueModal(false); // Ensure rescue modal is closed when starting
       
       let response;
@@ -363,6 +365,9 @@ export default function QuizConfigPage() {
         response = data;
       }
       
+      // Close modal only after successful quiz generation, right before navigation
+      setModalVisible(false);
+      
       router.push({
         pathname: '/(protected)/quiz/[id]',
         params: {
@@ -375,20 +380,60 @@ export default function QuizConfigPage() {
     } catch (error) {
       console.error('Failed to generate quiz:', error);
       
-      // Set error message (non-blocking, shown in banner)
+      // Set error message
       const errorMessage = error instanceof Error
         ? error.message
         : 'Failed to generate quiz. Please try again.';
       setError(errorMessage);
       
-      // For ANY generation failure, show Community Rescue modal
-      // Stop loading spinner and show the modal
+      // Close modal and show error screen
+      setModalVisible(false);
       setIsGenerating(false);
+      setShowErrorScreen(true);
+      
+      // Also fetch community sets for rescue modal (shown as alternative)
       await fetchCommunitySets();
-      setShowCommunityRescueModal(true);
     } finally {
+      // Reset generating state - ensures button becomes clickable again on error
+      // On success, component unmounts anyway, so this is safe
       setIsGenerating(false);
     }
+  };
+
+  const getUserFriendlyError = (errorMessage: string): string => {
+    // Handle technical Edge Function errors
+    if (errorMessage.includes('non-2xx status code') || errorMessage.includes('Edge Function')) {
+      return 'Oops! Our quiz generator is having trouble right now. Please try again in a moment.';
+    }
+    
+    // Handle network errors
+    if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('timeout')) {
+      return 'Connection issue detected. Please check your internet and try again.';
+    }
+    
+    // Handle rate limit errors
+    if (errorMessage.includes('Please wait') || errorMessage.includes('rate limit')) {
+      return errorMessage; // Keep the friendly rate limit message
+    }
+    
+    // Return original message if it's already user-friendly, otherwise provide generic message
+    if (errorMessage.length < 100 && !errorMessage.includes('Error') && !errorMessage.includes('Failed')) {
+      return errorMessage;
+    }
+    
+    return 'Something went wrong while generating the quiz. Please try again.';
+  };
+
+  const handleRetryQuiz = () => {
+    setShowErrorScreen(false);
+    setError(null);
+    // User can try again by selecting options and clicking Start Quiz
+  };
+
+  const handleShowCommunityRescue = async () => {
+    setShowErrorScreen(false);
+    await fetchCommunitySets();
+    setShowCommunityRescueModal(true);
   };
 
   const renderTabSwitcher = () => (
@@ -647,13 +692,17 @@ export default function QuizConfigPage() {
                   styles.modalStartButton,
                   styles.modalStartButtonFull,
                   (selectedTopic === undefined || isGenerating || isButtonDisabled) && styles.modalStartButtonDisabled,
+                  isGenerating && styles.modalStartButtonLoading,
                 ]}
                 onPress={handleStartQuiz}
                 disabled={selectedTopic === undefined || isGenerating || isButtonDisabled}
-                activeOpacity={0.8}
+                activeOpacity={isGenerating ? 0.7 : 0.8}
               >
                 {isGenerating ? (
-                  <ActivityIndicator color="#ffffff" size="small" />
+                  <View style={styles.modalStartButtonLoadingContent}>
+                    <ActivityIndicator color="#ffffff" size="small" style={styles.modalStartButtonSpinner} />
+                    <Text style={styles.modalStartButtonText}>Creating Challenge...</Text>
+                  </View>
                 ) : (
                   <Text style={styles.modalStartButtonText}>Start Quiz</Text>
                 )}
@@ -792,8 +841,62 @@ export default function QuizConfigPage() {
     );
   };
 
-  // Don't block UI for errors - show them inline instead
-  // The Explore tab should always be accessible
+  // Show error screen if quiz generation failed
+  if (showErrorScreen && error) {
+    const friendlyError = getUserFriendlyError(error);
+    
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <View style={styles.errorScreenContainer}>
+          <View style={styles.errorIconContainer}>
+            <Ionicons name="alert-circle" size={64} color="#FF6B35" />
+          </View>
+          <Text style={styles.errorScreenTitle}>Unable to Load Quiz</Text>
+          <Text style={styles.errorScreenText}>{friendlyError}</Text>
+          
+          {error.includes('non-2xx') && (
+            <View style={styles.errorDetailsContainer}>
+              <Text style={styles.errorDetailsText}>
+                Technical details: {error}
+              </Text>
+            </View>
+          )}
+          
+          <View style={styles.errorButtonContainer}>
+            <TouchableOpacity
+              style={[styles.errorScreenButton, styles.errorScreenButtonPrimary]}
+              onPress={handleRetryQuiz}
+            >
+              <Ionicons name="refresh" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+              <Text style={styles.errorScreenButtonText}>Try Again</Text>
+            </TouchableOpacity>
+            
+            {communitySets.length > 0 && (
+              <TouchableOpacity
+                style={[styles.errorScreenButton, styles.errorScreenButtonSecondary]}
+                onPress={handleShowCommunityRescue}
+              >
+                <Ionicons name="layers" size={20} color="#FF6B35" style={{ marginRight: 8 }} />
+                <Text style={[styles.errorScreenButtonText, styles.errorScreenButtonTextSecondary]}>Try Active Sets</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity
+              style={[styles.errorScreenButton, styles.errorScreenButtonSecondary]}
+              onPress={() => {
+                setShowErrorScreen(false);
+                setError(null);
+                router.replace('/(protected)/dashboard');
+              }}
+            >
+              <Ionicons name="home" size={20} color="#FF6B35" style={{ marginRight: 8 }} />
+              <Text style={[styles.errorScreenButtonText, styles.errorScreenButtonTextSecondary]}>Back to Dashboard</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -1248,6 +1351,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
+  modalStartButtonLoading: {
+    opacity: 0.7,
+  },
+  modalStartButtonLoadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  modalStartButtonSpinner: {
+    marginRight: 0,
+  },
   modalStartButtonText: {
     color: '#ffffff',
     fontSize: 16,
@@ -1421,5 +1536,82 @@ const styles = StyleSheet.create({
   },
   errorBannerClose: {
     padding: 4,
+  },
+  // Error Screen Styles
+  errorScreenContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    backgroundColor: '#F5F7FA',
+  },
+  errorIconContainer: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  errorScreenTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  errorScreenText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  errorDetailsContainer: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 24,
+    width: '100%',
+    maxWidth: 500,
+  },
+  errorDetailsText: {
+    fontSize: 12,
+    color: '#999',
+    fontFamily: 'monospace',
+  },
+  errorButtonContainer: {
+    width: '100%',
+    maxWidth: 500,
+    gap: 12,
+  },
+  errorScreenButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    minHeight: 56,
+  },
+  errorScreenButtonPrimary: {
+    backgroundColor: '#FF6B35',
+    shadowColor: '#FF6B35',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  errorScreenButtonSecondary: {
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#FF6B35',
+  },
+  errorScreenButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  errorScreenButtonTextSecondary: {
+    color: '#FF6B35',
   },
 });

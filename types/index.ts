@@ -6,6 +6,7 @@ export interface Question {
   difficulty: 'easy' | 'medium' | 'hard';
   explanation: string;
   user_answer?: number; // User's selected answer index (0-3), added when user selects an option
+  time_taken?: number; // Time taken to answer the question in seconds
 }
 
 export interface QuizResult {

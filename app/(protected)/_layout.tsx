@@ -112,18 +112,21 @@ export default function ProtectedLayout() {
         name="quiz"
         options={{
           href: null,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
         name="result"
         options={{
           href: null,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
         name="new-quiz"
         options={{
           href: null,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
@@ -131,6 +134,23 @@ export default function ProtectedLayout() {
         options={{
           href: null,
           headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="quiz/review/[attemptId]"
+        options={{
+          href: null,
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="quiz/mistakes"
+        options={{
+          href: null,
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
@@ -146,6 +166,7 @@ export default function ProtectedLayout() {
         options={{
           href: null,
           headerShown: false,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
@@ -153,6 +174,7 @@ export default function ProtectedLayout() {
         options={{
           href: null,
           headerShown: false,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen

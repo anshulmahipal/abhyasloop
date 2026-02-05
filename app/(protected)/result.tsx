@@ -4,6 +4,7 @@ import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { logger } from '../../lib/logger';
 import { useAuth } from '../../contexts/AuthContext';
+import { saveMistakes } from '../../lib/mistakeSync';
 
 interface Question {
   id: string;
@@ -13,6 +14,7 @@ interface Question {
   explanation?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
   user_answer?: number; // Added when merging with user_answers
+  time_taken?: number; // Time taken to answer in seconds
 }
 
 interface QuizAttemptWithQuiz {
@@ -31,13 +33,13 @@ interface QuizAttemptWithQuiz {
 }
 
 export default function ResultPage() {
-  // Read attemptId from search parameters (query params)
-  const params = useLocalSearchParams<{ attemptId?: string }>();
+  // Read attemptId and timeTaken from search parameters (query params)
+  const params = useLocalSearchParams<{ attemptId?: string; timeTaken?: string }>();
   const router = useRouter();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
-  const { session } = useAuth();
+  const { session, user } = useAuth();
 
   const [attemptData, setAttemptData] = useState<QuizAttemptWithQuiz | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,6 +47,8 @@ export default function ResultPage() {
   const [isSaved, setIsSaved] = useState(false);
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [xpEarned, setXpEarned] = useState(0);
+  const [avgTimePerQuestion, setAvgTimePerQuestion] = useState<number>(0);
+  const [incorrectCount, setIncorrectCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchResultData = async () => {
@@ -128,6 +132,60 @@ export default function ResultPage() {
     };
   }, [navigation]);
 
+  // Calculate analytics and rewards when attemptData is loaded
+  useEffect(() => {
+    if (!attemptData || !session?.user) {
+      return;
+    }
+
+    // Parse time_taken array from URL params if available
+    let timeTakenArray: number[] = [];
+    if (params.timeTaken) {
+      try {
+        timeTakenArray = JSON.parse(decodeURIComponent(params.timeTaken));
+      } catch (e) {
+        console.error('Error parsing timeTaken param:', e);
+      }
+    }
+
+    // Calculate analytics
+    const userAnswers = attemptData.user_answers || [];
+    const questions = attemptData.generated_quizzes?.questions || [];
+
+    // Filter incorrect answers for mistakes
+    const incorrectQuestions = questions.filter((q, index) => {
+      const userAnswer = index < userAnswers.length ? userAnswers[index] : null;
+      const userAnswerValue = userAnswer !== null && userAnswer !== -1 ? userAnswer : undefined;
+      // Only include questions where user answered and got it wrong
+      return userAnswerValue !== undefined && userAnswerValue !== q.correct_index;
+    });
+
+    // Calculate average time per question
+    const totalTime = timeTakenArray.reduce((sum, time) => sum + time, 0);
+    const avgTime = timeTakenArray.length > 0 ? Math.round(totalTime / timeTakenArray.length) : 0;
+    setAvgTimePerQuestion(avgTime);
+    setIncorrectCount(incorrectQuestions.length);
+
+    // Save mistakes to database (bulk insert)
+    if (incorrectQuestions.length > 0 && user) {
+      const mistakesToSave = incorrectQuestions.map((q) => ({
+        user_id: user.id,
+        question_id: q.id,
+      }));
+
+      // Save mistakes using the robust sync utility (runs in background)
+      saveMistakes(user.id, mistakesToSave).catch((err: unknown) => {
+        console.error('Error saving mistakes:', err);
+        logger.error('Failed to save mistakes', err);
+      });
+
+      logger.info('Mistakes saved', {
+        count: incorrectQuestions.length,
+        attemptId: params.attemptId,
+      });
+    }
+  }, [attemptData, session?.user?.id, params.timeTaken, params.attemptId, user]);
+
   // Calculate rewards and save progress when attemptData is loaded
   useEffect(() => {
     if (!attemptData || !session?.user || isSaved) {
@@ -178,11 +236,22 @@ export default function ResultPage() {
       const userAnswers = attemptData.user_answers || [];
       const questions = attemptData.generated_quizzes?.questions || [];
 
-      // Merge user_answers with questions to create quiz_data with user_answer property
+      // Parse time_taken array from URL params if available
+      let timeTakenArray: number[] = [];
+      if (params.timeTaken) {
+        try {
+          timeTakenArray = JSON.parse(decodeURIComponent(params.timeTaken));
+        } catch (e) {
+          console.error('Error parsing timeTaken param:', e);
+        }
+      }
+
+      // Merge user_answers with questions to create quiz_data with user_answer and time_taken properties
       const quizData = questions.map((question, index) => {
         const userAnswer = index < userAnswers.length ? userAnswers[index] : null;
         // Convert -1 (unanswered) to undefined for user_answer
         const userAnswerValue = userAnswer !== null && userAnswer !== -1 ? userAnswer : undefined;
+        const timeTaken = index < timeTakenArray.length ? timeTakenArray[index] : undefined;
         
         return {
           id: question.id,
@@ -192,6 +261,7 @@ export default function ResultPage() {
           difficulty: question.difficulty || difficulty,
           explanation: question.explanation || '',
           ...(userAnswerValue !== undefined && { user_answer: userAnswerValue }),
+          ...(timeTaken !== undefined && { time_taken: timeTaken }),
         };
       });
 
@@ -349,6 +419,18 @@ export default function ResultPage() {
           {message && (
             <Text style={styles.message}>{message}</Text>
           )}
+        </View>
+
+        {/* Analytics Row */}
+        <View style={styles.analyticsRow}>
+          <View style={styles.analyticsItem}>
+            <Text style={styles.analyticsIcon}>⏱️</Text>
+            <Text style={styles.analyticsText}>Avg Speed: {avgTimePerQuestion}s</Text>
+          </View>
+          <View style={styles.analyticsItem}>
+            <Text style={styles.analyticsIcon}>❌</Text>
+            <Text style={styles.analyticsText}>Mistakes Saved: {incorrectCount}</Text>
+          </View>
         </View>
 
         {/* Rewards Card */}
@@ -587,5 +669,34 @@ const styles = StyleSheet.create({
     color: '#d32f2f',
     textAlign: 'center',
     marginBottom: 20,
+  },
+  analyticsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  analyticsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  analyticsIcon: {
+    fontSize: 20,
+  },
+  analyticsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
   },
 });
