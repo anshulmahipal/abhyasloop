@@ -129,6 +129,9 @@ export default function QuizConfigPage() {
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
   const buttonDisableTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Error state
+  const [error, setError] = useState<string | null>(null);
+
   // Community Rescue modal state
   const [showCommunityRescueModal, setShowCommunityRescueModal] = useState(false);
   const [communitySets, setCommunitySets] = useState<CommunitySet[]>([]);
@@ -328,6 +331,7 @@ export default function QuizConfigPage() {
       // For ANY generation failure, show Community Rescue modal
       // Stop loading spinner, clear any error state, and show the modal
       setIsGenerating(false);
+      setError(null); // Clear error state to prevent blocking modal
       await fetchCommunitySets();
       setShowCommunityRescueModal(true);
     } finally {
@@ -684,6 +688,29 @@ export default function QuizConfigPage() {
       </Modal>
     );
   };
+
+  // Don't show error screen if community modal is showing
+  if (error && !showCommunityRescueModal) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.titleBar}>
+          <Text style={styles.titleBarText}>New Quiz</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={64} color="#FF6B35" />
+          <Text style={styles.errorTitle}>Error</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.errorButton}
+            onPress={() => setError(null)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.errorButtonText}>Dismiss</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -1203,5 +1230,36 @@ const styles = StyleSheet.create({
   },
   communityCardArrow: {
     marginLeft: 12,
+  },
+  // Error Screen Styles
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  errorButton: {
+    backgroundColor: '#FF512F',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

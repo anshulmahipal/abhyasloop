@@ -432,6 +432,7 @@ export default function QuizPage() {
   /**
    * Tracks user's selected option index for every question.
    * Updates the userAnswers state array when user selects an option.
+   * Also updates the questions array with user_answer property for full context.
    * This data will be saved to the database as user_answers column when quiz is submitted.
    */
   const handleOptionSelect = (optionIndex: number) => {
@@ -442,6 +443,14 @@ export default function QuizPage() {
     const newAnswers = [...userAnswers];
     newAnswers[currentQuestionIndex] = optionIndex;
     setUserAnswers(newAnswers);
+    
+    // Update questions array with user_answer property for full context
+    const updatedQuestions = [...questions];
+    updatedQuestions[currentQuestionIndex] = {
+      ...updatedQuestions[currentQuestionIndex],
+      user_answer: optionIndex,
+    };
+    setQuestions(updatedQuestions);
   };
 
   /**

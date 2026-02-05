@@ -155,6 +155,20 @@ export default function ProtectedLayout() {
           headerShown: false,
         }}
       />
+      <Tabs.Screen
+        name="history/index"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
+        name="history/[id]"
+        options={{
+          href: null,
+          headerShown: false,
+        }}
+      />
     </Tabs>
   );
 }

@@ -5,6 +5,7 @@ export interface Question {
   correctIndex: number;
   difficulty: 'easy' | 'medium' | 'hard';
   explanation: string;
+  user_answer?: number; // User's selected answer index (0-3), added when user selects an option
 }
 
 export interface QuizResult {

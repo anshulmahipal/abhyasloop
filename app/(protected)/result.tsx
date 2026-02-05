@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, useWindowDimensions, Alert } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { logger } from '../../lib/logger';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Question {
   id: string;
+  question_text?: string;
+  options?: string[];
+  correct_index?: number;
+  explanation?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  user_answer?: number; // Added when merging with user_answers
 }
 
 interface QuizAttemptWithQuiz {
@@ -16,6 +22,7 @@ interface QuizAttemptWithQuiz {
   score: number;
   total_questions: number;
   completed_at: string;
+  user_answers: number[] | null;
   generated_quizzes: {
     topic: string;
     difficulty: 'easy' | 'medium' | 'hard';
@@ -27,6 +34,7 @@ export default function ResultPage() {
   // Read attemptId from search parameters (query params)
   const params = useLocalSearchParams<{ attemptId?: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
   const { session } = useAuth();
@@ -50,7 +58,7 @@ export default function ResultPage() {
         setIsLoading(true);
         setError(null);
 
-        // Fetch quiz_attempts row by ID and join generated_quizzes to get topic, difficulty, and questions
+        // Fetch quiz_attempts row by ID and join generated_quizzes to get topic, difficulty, and full question data
         const { data, error: fetchError } = await supabase
           .from('quiz_attempts')
           .select(`
@@ -59,7 +67,12 @@ export default function ResultPage() {
               topic,
               difficulty,
               questions (
-                id
+                id,
+                question_text,
+                options,
+                correct_index,
+                explanation,
+                difficulty
               )
             )
           `)
@@ -93,6 +106,28 @@ export default function ResultPage() {
     fetchResultData();
   }, [params.attemptId]);
 
+  // Hide tab bar when result screen is active
+  useEffect(() => {
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.setOptions({
+        headerShown: false,
+        tabBarStyle: { display: 'none' },
+      });
+    }
+
+    // Restore tab bar when component unmounts
+    return () => {
+      const parentNav = navigation.getParent();
+      if (parentNav) {
+        parentNav.setOptions({
+          headerShown: undefined,
+          tabBarStyle: undefined,
+        });
+      }
+    };
+  }, [navigation]);
+
   // Calculate rewards and save progress when attemptData is loaded
   useEffect(() => {
     if (!attemptData || !session?.user || isSaved) {
@@ -116,11 +151,12 @@ export default function ResultPage() {
   }, [attemptData, session?.user?.id, isSaved]);
 
   const saveProgress = async (coins: number, xp: number) => {
-    if (!session?.user || isSaved) {
+    if (!session?.user || isSaved || !attemptData) {
       return;
     }
 
     try {
+      // Save coins and XP via RPC
       const { error: rpcError } = await supabase.rpc('finish_quiz', {
         p_user_id: session.user.id,
         p_coins_earned: coins,
@@ -132,6 +168,56 @@ export default function ResultPage() {
         logger.error('Failed to save progress', rpcError);
         // Don't show error to user, just log it
         return;
+      }
+
+      // Save quiz session to quiz_history
+      const topic = attemptData.generated_quizzes?.topic || 'General';
+      const difficulty = attemptData.generated_quizzes?.difficulty || 'medium';
+      const correctCount = attemptData.score;
+      const total = attemptData.total_questions;
+      const userAnswers = attemptData.user_answers || [];
+      const questions = attemptData.generated_quizzes?.questions || [];
+
+      // Merge user_answers with questions to create quiz_data with user_answer property
+      const quizData = questions.map((question, index) => {
+        const userAnswer = index < userAnswers.length ? userAnswers[index] : null;
+        // Convert -1 (unanswered) to undefined for user_answer
+        const userAnswerValue = userAnswer !== null && userAnswer !== -1 ? userAnswer : undefined;
+        
+        return {
+          id: question.id,
+          question: question.question_text || '',
+          options: question.options || [],
+          correctIndex: question.correct_index ?? 0,
+          difficulty: question.difficulty || difficulty,
+          explanation: question.explanation || '',
+          ...(userAnswerValue !== undefined && { user_answer: userAnswerValue }),
+        };
+      });
+
+      // Insert into quiz_history
+      const { error: historyError } = await supabase
+        .from('quiz_history')
+        .insert({
+          user_id: session.user.id,
+          topic: topic,
+          score: correctCount,
+          total_questions: total,
+          quiz_data: quizData,
+          difficulty: difficulty.charAt(0).toUpperCase() + difficulty.slice(1), // Capitalize first letter
+        });
+
+      if (historyError) {
+        console.error('Error saving quiz history:', historyError);
+        logger.error('Failed to save quiz history', historyError);
+        // Don't block UI, just log the error
+      } else {
+        logger.info('Quiz history saved successfully', {
+          topic,
+          score: correctCount,
+          totalQuestions: total,
+          attemptId: params.attemptId,
+        });
       }
 
       setIsSaved(true);

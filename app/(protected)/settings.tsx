@@ -111,7 +111,11 @@ export default function SettingsPage() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Section 1: App Info */}
         {renderSection('App Info', (
           <View style={styles.appInfoItem}>
@@ -132,6 +136,11 @@ export default function SettingsPage() {
               'person-outline',
               'Edit Profile',
               () => router.push('/(protected)/profile/edit')
+            )}
+            {renderListItem(
+              'time-outline',
+              'Quiz History',
+              () => router.push('/(protected)/history')
             )}
             {renderListItem(
               'notifications-outline',
@@ -212,6 +221,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100, // Extra padding to account for bottom tab bar
   },
   section: {
     marginTop: 32,
