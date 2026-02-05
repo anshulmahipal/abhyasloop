@@ -160,6 +160,7 @@ export default function ProtectedLayout() {
         options={{
           href: null,
           headerShown: false,
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tabs.Screen
@@ -167,6 +168,7 @@ export default function ProtectedLayout() {
         options={{
           href: null,
           headerShown: false,
+          tabBarStyle: { display: 'none' },
         }}
       />
     </Tabs>

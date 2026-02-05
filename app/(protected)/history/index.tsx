@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -21,7 +21,7 @@ interface QuizAttemptWithQuiz {
   } | null;
 }
 
-// Format date as "Today", "2 days ago", etc.
+// Format date as "Today", "2 Feb", etc.
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
   const now = new Date();
@@ -32,31 +32,20 @@ const formatDate = (dateString: string): string => {
     return 'Today';
   } else if (diffDays === 1) {
     return 'Yesterday';
-  } else if (diffDays < 7) {
-    return `${diffDays} days ago`;
   } else {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 };
 
 export default function HistoryPage() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isMobile = width < 768;
   const { user } = useAuth();
 
   const [historyItems, setHistoryItems] = useState<QuizAttemptWithQuiz[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-refresh when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      fetchHistory();
-    }, [user])
-  );
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
       return;
@@ -96,44 +85,63 @@ export default function HistoryPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
-  const getScoreColor = (score: number, total: number): string => {
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchHistory();
+    }, [fetchHistory])
+  );
+
+  const getScoreBadgeStyle = (score: number, total: number) => {
     const percentage = (score / total) * 100;
-    if (percentage > 80) {
-      return '#4CAF50'; // Green for high scores
-    } else if (percentage < 50) {
-      return '#F44336'; // Red for low scores
+    if (percentage > 70) {
+      return {
+        backgroundColor: '#E8F5E9',
+        textColor: '#2E7D32',
+      };
+    } else if (percentage < 40) {
+      return {
+        backgroundColor: '#FFEBEE',
+        textColor: '#C62828',
+      };
     } else {
-      return '#FF9800'; // Orange for medium scores
+      return {
+        backgroundColor: '#FFF3E0',
+        textColor: '#E65100',
+      };
     }
   };
 
-  const renderHistoryItem = ({ item }: { item: QuizAttemptWithQuiz }) => {
-    const scoreColor = getScoreColor(item.score, item.total_questions);
+  const renderHistoryItem = ({ item, index }: { item: QuizAttemptWithQuiz; index: number }) => {
     const topic = item.generated_quizzes?.topic || 'Unknown Topic';
+    const difficulty = item.generated_quizzes?.difficulty || 'medium';
+    const badgeStyle = getScoreBadgeStyle(item.score, item.total_questions);
+    const percentage = Math.round((item.score / item.total_questions) * 100);
+    const isLastItem = index === historyItems.length - 1;
 
     return (
       <TouchableOpacity
-        style={[styles.card, isMobile && styles.cardMobile]}
-        onPress={() => router.push(`/(protected)/quiz/review/${item.id}`)}
+        style={[styles.card, isLastItem && styles.cardLast]}
+        onPress={() => router.push(`/(protected)/history/${item.id}`)}
         activeOpacity={0.7}
       >
-        {/* Left: Dot/Icon */}
-        <View style={styles.leftSection}>
-          <View style={[styles.dot, { backgroundColor: scoreColor }]} />
-        </View>
-
-        {/* Center: Topic + Date */}
-        <View style={styles.centerSection}>
+        {/* Row 1: Topic Name and Date */}
+        <View style={styles.row1}>
           <Text style={styles.topicText}>{topic}</Text>
           <Text style={styles.dateText}>{formatDate(item.completed_at)}</Text>
         </View>
 
-        {/* Right: Score Badge */}
-        <View style={[styles.scoreBadge, { backgroundColor: scoreColor }]}>
-          <Text style={styles.scoreText}>
-            {item.score}/{item.total_questions}
+        {/* Row 2: Score Badge and Difficulty */}
+        <View style={styles.row2}>
+          <View style={[styles.scoreBadge, { backgroundColor: badgeStyle.backgroundColor }]}>
+            <Text style={[styles.scoreText, { color: badgeStyle.textColor }]}>
+              {percentage}%
+            </Text>
+          </View>
+          <Text style={styles.difficultyText}>
+            {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
           </Text>
         </View>
       </TouchableOpacity>
@@ -142,63 +150,23 @@ export default function HistoryPage() {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons name="time-outline" size={64} color="#ccc" />
+      <Ionicons name="time-outline" size={60} color="#999" />
       <Text style={styles.emptyStateText}>
-        No quiz history yet. Start playing to see your progress!
+        No quizzes yet. Start your streak!
       </Text>
+      <TouchableOpacity
+        style={styles.emptyStateButton}
+        onPress={() => router.push('/(protected)/quiz')}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.emptyStateButtonText}>Take a Quiz</Text>
+      </TouchableOpacity>
     </View>
   );
 
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Quiz History</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF512F" />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Quiz History</Text>
-          <View style={styles.placeholder} />
-        </View>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={fetchHistory}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -211,13 +179,28 @@ export default function HistoryPage() {
         <View style={styles.placeholder} />
       </View>
 
-      {historyItems.length === 0 ? (
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF512F" />
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>⚠️ {error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchHistory}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : historyItems.length === 0 ? (
         renderEmptyState()
       ) : (
         <FlatList
           data={historyItems}
           renderItem={renderHistoryItem}
           keyExtractor={(item) => item.id}
+          style={styles.list}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         />
@@ -280,16 +263,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  list: {
+    flex: 1,
+  },
   listContent: {
     padding: 20,
-    gap: 12,
+    paddingBottom: 40,
   },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 15,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -297,43 +282,44 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 2,
   },
-  cardMobile: {
-    padding: 14,
+  cardLast: {
+    marginBottom: 0,
   },
-  leftSection: {
-    marginRight: 16,
-  },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  centerSection: {
-    flex: 1,
+  row1: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   topicText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 4,
+    color: '#2D3436',
+    flex: 1,
   },
   dateText: {
     fontSize: 14,
-    color: '#666',
+    color: '#999',
+  },
+  row2: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   scoreBadge: {
-    paddingVertical: 6,
+    borderRadius: 20,
     paddingHorizontal: 12,
-    borderRadius: 16,
-    minWidth: 60,
-    alignItems: 'center',
+    paddingVertical: 6,
   },
   scoreText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  difficultyText: {
+    fontSize: 14,
+    color: '#999',
   },
   emptyState: {
     flex: 1,
@@ -346,5 +332,17 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginTop: 16,
+    marginBottom: 24,
+  },
+  emptyStateButton: {
+    backgroundColor: '#FF512F',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  emptyStateButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Fragment } from 'react';
+import { useState, useRef, useEffect, Fragment, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Modal, Pressable, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,15 @@ type TabType = 'recent' | 'explore';
 interface RecentTopic {
   id: string;
   name: string;
+}
+
+interface RecentQuiz {
+  id: string;
+  topic: string;
+  score: number;
+  total_questions: number;
+  difficulty: string;
+  created_at: string;
 }
 
 interface Category {
@@ -108,14 +117,18 @@ const getTopicIcon = (topic: string): string => {
 };
 
 export default function QuizConfigPage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
   const { exams, loading } = useExamConfig();
   
-  // Tab state - smart default: if no recent history, default to 'explore'
-  const [activeTab, setActiveTab] = useState<TabType>(MOCK_RECENT_TOPICS.length === 0 ? 'explore' : 'recent');
+  // Tab state - will be updated based on recentQuizzes after fetch
+  const [activeTab, setActiveTab] = useState<TabType>('recent');
+  
+  // Recent quizzes state
+  const [recentQuizzes, setRecentQuizzes] = useState<RecentQuiz[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
   
   // Modal state
   const [modalVisible, setModalVisible] = useState(false);
@@ -138,6 +151,40 @@ export default function QuizConfigPage() {
   const [isLoadingCommunitySets, setIsLoadingCommunitySets] = useState(false);
 
   const currentFocus = profile?.current_focus || 'General Knowledge';
+
+  // Fetch recent quizzes from quiz_history table
+  const fetchRecentQuizzes = useCallback(async () => {
+    if (!user) {
+      setLoadingRecent(false);
+      return;
+    }
+
+    try {
+      setLoadingRecent(true);
+      const { data, error } = await supabase
+        .from('quiz_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error fetching recent quizzes:', error);
+        return;
+      }
+
+      setRecentQuizzes((data || []) as RecentQuiz[]);
+    } catch (err) {
+      console.error('Failed to fetch recent quizzes:', err);
+    } finally {
+      setLoadingRecent(false);
+    }
+  }, [user]);
+
+  // Auto-refresh when screen comes into focus or user changes
+  useEffect(() => {
+    fetchRecentQuizzes();
+  }, [fetchRecentQuizzes]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -328,10 +375,15 @@ export default function QuizConfigPage() {
     } catch (error) {
       console.error('Failed to generate quiz:', error);
       
+      // Set error message (non-blocking, shown in banner)
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'Failed to generate quiz. Please try again.';
+      setError(errorMessage);
+      
       // For ANY generation failure, show Community Rescue modal
-      // Stop loading spinner, clear any error state, and show the modal
+      // Stop loading spinner and show the modal
       setIsGenerating(false);
-      setError(null); // Clear error state to prevent blocking modal
       await fetchCommunitySets();
       setShowCommunityRescueModal(true);
     } finally {
@@ -343,7 +395,10 @@ export default function QuizConfigPage() {
     <View style={styles.tabSwitcher}>
       <TouchableOpacity
         style={[styles.tabButton, activeTab === 'recent' && styles.tabButtonActive]}
-        onPress={() => setActiveTab('recent')}
+        onPress={() => {
+          setActiveTab('recent');
+          setError(null); // Clear error when switching tabs
+        }}
         activeOpacity={0.8}
       >
         <Text style={[styles.tabButtonText, activeTab === 'recent' && styles.tabButtonTextActive]}>
@@ -352,7 +407,10 @@ export default function QuizConfigPage() {
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.tabButton, activeTab === 'explore' && styles.tabButtonActive]}
-        onPress={() => setActiveTab('explore')}
+        onPress={() => {
+          setActiveTab('explore');
+          setError(null); // Clear error when switching tabs
+        }}
         activeOpacity={0.8}
       >
         <Text style={[styles.tabButtonText, activeTab === 'explore' && styles.tabButtonTextActive]}>
@@ -377,11 +435,19 @@ export default function QuizConfigPage() {
   );
 
   const renderRecentView = () => {
-    if (MOCK_RECENT_TOPICS.length === 0) {
+    if (loadingRecent) {
+      return (
+        <View style={styles.recentLoadingContainer}>
+          <ActivityIndicator size="small" color="#FF512F" />
+        </View>
+      );
+    }
+
+    if (recentQuizzes.length === 0) {
       return (
         <View style={styles.emptyState}>
           <Ionicons name="book-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyStateTitle}>No Recent Topics</Text>
+          <Text style={styles.emptyStateTitle}>No recent plays</Text>
           <Text style={styles.emptyStateText}>Start exploring to build your quiz history!</Text>
           <TouchableOpacity
             style={styles.emptyStateButton}
@@ -395,19 +461,56 @@ export default function QuizConfigPage() {
     }
 
     return (
-      <View style={styles.gridWrapper}>
-        {MOCK_RECENT_TOPICS.map((item) => (
-          <View key={item.id} style={styles.gridItem}>
-            {renderGridCard(item.name, 'book', () => handleRecentTopicPress(item), true)}
-          </View>
-        ))}
+      <View style={styles.recentListContainer}>
+        {recentQuizzes.map((item) => {
+          const difficulty = item.difficulty.toLowerCase() as 'easy' | 'medium' | 'hard';
+          const formattedDate = new Date(item.created_at).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          });
+
+          return (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.recentCard}
+              onPress={() => handleInstantPlay(item.topic, difficulty)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.recentCardIcon}>
+                <Ionicons 
+                  name={getTopicIcon(item.topic) as any} 
+                  size={24} 
+                  color="#FF512F" 
+                />
+              </View>
+              <View style={styles.recentCardContent}>
+                <Text style={styles.recentCardTitle}>{item.topic}</Text>
+                <Text style={styles.recentCardSubtitle}>
+                  {item.score}/{item.total_questions} • {formattedDate}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+          );
+        })}
       </View>
     );
   };
 
   const renderExploreView = () => {
     // Use dynamic exams data, fallback to static CATEGORIES if exams is empty
+    // Always show something - never show empty state for Explore tab
     const categoriesToRender = exams.length > 0 ? exams as Category[] : CATEGORIES;
+    
+    // Show loading only if we're still loading AND have no cached data
+    if (loading && categoriesToRender.length === 0) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#FF512F" />
+        </View>
+      );
+    }
     
     return (
       <View style={styles.gridWrapper}>
@@ -689,28 +792,8 @@ export default function QuizConfigPage() {
     );
   };
 
-  // Don't show error screen if community modal is showing
-  if (error && !showCommunityRescueModal) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.titleBar}>
-          <Text style={styles.titleBarText}>New Quiz</Text>
-        </View>
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={64} color="#FF6B35" />
-          <Text style={styles.errorTitle}>Error</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.errorButton}
-            onPress={() => setError(null)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.errorButtonText}>Dismiss</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Don't block UI for errors - show them inline instead
+  // The Explore tab should always be accessible
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -736,6 +819,19 @@ export default function QuizConfigPage() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.container}>
+            {/* Show error banner if there's an error (non-blocking) */}
+            {error && !showCommunityRescueModal && (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={20} color="#FF6B35" />
+                <Text style={styles.errorBannerText}>{error}</Text>
+                <TouchableOpacity
+                  onPress={() => setError(null)}
+                  style={styles.errorBannerClose}
+                >
+                  <Ionicons name="close" size={18} color="#666" />
+                </TouchableOpacity>
+              </View>
+            )}
             {activeTab === 'recent' ? renderRecentView() : renderExploreView()}
           </View>
         </ScrollView>
@@ -888,6 +984,51 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  recentLoadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentListContainer: {
+    gap: 12,
+  },
+  recentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  recentCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFF5F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  recentCardContent: {
+    flex: 1,
+  },
+  recentCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 4,
+  },
+  recentCardSubtitle: {
+    fontSize: 13,
+    color: '#666',
   },
   // Modal Styles
   modalOverlay: {
@@ -1261,5 +1402,24 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF6B35',
+    gap: 8,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#C62828',
+  },
+  errorBannerClose: {
+    padding: 4,
   },
 });
