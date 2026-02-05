@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -163,6 +164,20 @@ export default function AuthScreen() {
     setPassword('');
   };
 
+  const handleTermsPress = () => {
+    Linking.openURL('https://google.com').catch((err) => {
+      console.error('Failed to open Terms URL:', err);
+      Alert.alert('Error', 'Unable to open browser.');
+    });
+  };
+
+  const handlePrivacyPress = () => {
+    Linking.openURL('https://google.com').catch((err) => {
+      console.error('Failed to open Privacy Policy URL:', err);
+      Alert.alert('Error', 'Unable to open browser.');
+    });
+  };
+
   return (
     <ScrollView
       contentContainerStyle={[
@@ -271,6 +286,21 @@ export default function AuthScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Legal Compliance Footer */}
+          <View style={styles.legalFooter}>
+            <Text style={styles.legalText}>
+              By continuing, you agree to our{' '}
+              <Text style={styles.legalLink} onPress={handleTermsPress}>
+                Terms
+              </Text>
+              {' '}and{' '}
+              <Text style={styles.legalLink} onPress={handlePrivacyPress}>
+                Privacy Policy
+              </Text>
+              .
+            </Text>
+          </View>
         </View>
       </View>
     </ScrollView>
@@ -284,9 +314,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 40,
+    paddingBottom: 60,
   },
   scrollContentMobile: {
     paddingVertical: 20,
+    paddingBottom: 60,
   },
   container: {
     width: '100%',
@@ -372,5 +404,19 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 14,
     fontWeight: '500',
+  },
+  legalFooter: {
+    marginTop: 24,
+    paddingHorizontal: 8,
+  },
+  legalText: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  legalLink: {
+    color: '#6b7280',
+    textDecorationLine: 'underline',
   },
 });

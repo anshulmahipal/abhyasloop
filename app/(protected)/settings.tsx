@@ -52,14 +52,18 @@ export default function SettingsPage() {
   };
 
   const handleSendFeedback = () => {
-    Linking.openURL('mailto:support@quizmaster.com').catch((err) => {
-      console.error('Failed to open email:', err);
-      Alert.alert('Error', 'Unable to open email client. Please contact support@quizmaster.com');
-    });
+    router.push('/(protected)/feedback');
   };
 
   const handlePrivacyPolicy = () => {
-    Linking.openURL('https://www.google.com/search?q=google.com').catch((err) => {
+    Linking.openURL('https://google.com').catch((err) => {
+      console.error('Failed to open URL:', err);
+      Alert.alert('Error', 'Unable to open browser.');
+    });
+  };
+
+  const handleTermsOfService = () => {
+    Linking.openURL('https://google.com').catch((err) => {
       console.error('Failed to open URL:', err);
       Alert.alert('Error', 'Unable to open browser.');
     });
@@ -170,15 +174,26 @@ export default function SettingsPage() {
               'Send Feedback',
               handleSendFeedback
             )}
+          </>
+        ))}
+
+        {/* Section 4: Legal */}
+        {renderSection('Legal', (
+          <>
             {renderListItem(
-              'document-text-outline',
+              'lock-closed-outline',
               'Privacy Policy',
               handlePrivacyPolicy
+            )}
+            {renderListItem(
+              'document-text-outline',
+              'Terms of Service',
+              handleTermsOfService
             )}
           </>
         ))}
 
-        {/* Section 4: Danger Zone */}
+        {/* Section 5: Danger Zone */}
         {renderSection('Danger Zone', (
           <TouchableOpacity
             style={styles.logoutButton}
@@ -188,6 +203,11 @@ export default function SettingsPage() {
             <Text style={styles.logoutButtonText}>Log Out</Text>
           </TouchableOpacity>
         ))}
+
+        {/* App Version */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>Version 1.0.0 (Build 1)</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -308,5 +328,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#F44336',
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+  },
+  versionText: {
+    fontSize: 12,
+    color: '#999',
   },
 });
