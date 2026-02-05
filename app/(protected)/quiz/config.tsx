@@ -902,6 +902,13 @@ export default function QuizConfigPage() {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       {/* Title Bar */}
       <View style={styles.titleBar}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="arrow-back" size={24} color="#ffffff" />
+        </TouchableOpacity>
         <Text style={styles.titleBarText}>New Quiz</Text>
       </View>
 
@@ -959,7 +966,16 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 16,
     paddingHorizontal: 24,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 24,
+    padding: 4,
+    zIndex: 1,
   },
   titleBarText: {
     fontSize: 24,
