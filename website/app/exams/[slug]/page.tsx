@@ -35,7 +35,7 @@ export default async function ExamPage({ params }: Props) {
         Unlimited AI-powered practice tests for {name}. Get started free.
       </p>
       <a
-        href={`${APP_BASE}/auth`}
+        href={APP_BASE}
         className="mt-8 inline-block rounded-lg bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700"
       >
         Start Practicing
