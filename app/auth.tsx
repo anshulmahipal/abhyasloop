@@ -188,7 +188,7 @@ export default function AuthScreen() {
       <View style={[styles.container, isMobile && styles.containerMobile]}>
         <View style={styles.card}>
           {/* Title */}
-          <Text style={styles.title}>Tyariwala</Text>
+          <Text style={styles.title}>Tyariwale</Text>
 
           {/* Form */}
           <View style={styles.form}>

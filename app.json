@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Tyariwala",
-    "slug": "tyariwala",
+    "name": "Tyariwale",
+    "slug": "tyariwale",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "scheme": "tyariwala",
+    "scheme": "tyariwale",
     "splash": {
       "backgroundColor": "#0D9488",
       "resizeMode": "contain"

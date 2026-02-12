@@ -54,7 +54,7 @@ function RootLayoutNav() {
         },
       }}
     >
-      <Stack.Screen name="index" options={{ title: 'Tyariwala', headerShown: false }} />
+      <Stack.Screen name="index" options={{ title: 'Tyariwale', headerShown: false }} />
       <Stack.Screen name="auth" options={{ headerShown: false }} />
       <Stack.Screen name="(protected)" options={{ headerShown: false }} />
     </Stack>

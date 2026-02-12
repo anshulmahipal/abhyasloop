@@ -88,7 +88,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
   global: {
     headers: {
-      'x-client-info': 'tyariwala@1.0.0',
+      'x-client-info': 'tyariwale@1.0.0',
     },
   },
 });
