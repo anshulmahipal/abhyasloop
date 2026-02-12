@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Signup() {
   const { signup } = useAuth();
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,7 +18,7 @@ export default function Signup() {
       return;
     }
     signup(name, email, password);
-    window.location.href = '/';
+    navigate('/dashboard', { replace: true });
   };
 
   return (
@@ -77,9 +79,9 @@ export default function Signup() {
           </form>
           <p className="mt-6 text-center text-sm text-slate-600">
             Already have an account?{' '}
-            <a href="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+            <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
               Log in
-            </a>
+            </Link>
           </p>
         </div>
       </div>

@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     try {
@@ -16,6 +17,8 @@ export function AuthProvider({ children }) {
       }
     } catch (e) {
       console.warn('AuthContext: failed to read session from localStorage', e);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -58,6 +61,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    loading,
     isAuthenticated: !!user,
     login,
     signup,

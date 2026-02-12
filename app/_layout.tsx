@@ -20,17 +20,14 @@ function RootLayoutNav() {
     const isAuth = currentRoute === 'auth';
     const isProtected = currentRoute === '(protected)';
 
-    // Redirect logic based on session
+    // Redirect logic: never show landing inside the app — go straight to auth or dashboard
     if (session) {
-      // User is signed in
       if (isAuth || isIndex) {
-        // Redirect from auth/index to dashboard
         router.replace('/(protected)/dashboard');
       }
     } else {
-      // User is not signed in
-      if (isProtected) {
-        // Redirect from protected routes to auth
+      // Not signed in: from index or protected → auth (login)
+      if (isIndex || isProtected) {
         router.replace('/auth');
       }
     }

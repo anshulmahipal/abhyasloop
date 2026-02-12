@@ -1,10 +1,5 @@
 {
-  "buildCommand": "npm run build",
-  "outputDirectory": "web-build",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "buildCommand": "echo 'Static website — no build'",
+  "outputDirectory": "website",
+  "cleanUrls": true
 }
