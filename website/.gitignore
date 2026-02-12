@@ -1,2 +1,23 @@
-.vercel
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+.next/
+out/
+build/
+dist/
+
+# Debug
+npm-debug.log*
+.yarn-error.log*
+
+# Env
 .env*.local
+.vercel
+
+# IDE
+.idea
+*.swp
+*.swo
