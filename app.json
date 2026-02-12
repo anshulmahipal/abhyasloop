@@ -4,6 +4,7 @@
     "slug": "quizmaster",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "scheme": "quizmaster",
     "splash": {
@@ -11,12 +12,15 @@
       "resizeMode": "contain"
     },
     "ios": {
+      "icon": "./assets/icon.png",
       "supportsTablet": true,
       "userInterfaceStyle": "light"
     },
     "android": {
+      "icon": "./assets/icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#FF512F"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#FFFFFF"
       },
       "userInterfaceStyle": "light"
     },
