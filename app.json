@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "QuizMaster",
-    "slug": "quizmaster",
+    "name": "Tyariwala",
+    "slug": "tyariwala",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "scheme": "quizmaster",
+    "scheme": "tyariwala",
     "splash": {
-      "backgroundColor": "#FF512F",
+      "backgroundColor": "#0D9488",
       "resizeMode": "contain"
     },
     "ios": {

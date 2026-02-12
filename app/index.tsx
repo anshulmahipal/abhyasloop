@@ -38,7 +38,7 @@ export default function LandingPage() {
 
         <View style={styles.featuresSection}>
           <Text style={[styles.featuresTitle, isMobile && styles.featuresTitleMobile]}>
-            Why Choose AbhyasLoop?
+            Why Choose Tyariwala?
           </Text>
           <View style={[styles.featuresGrid, isMobile && styles.featuresGridMobile]}>
             <FeatureCard
