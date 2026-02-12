@@ -14,13 +14,13 @@ export function Navbar() {
         </Link>
         <div className="flex items-center gap-4">
           <a
-            href={`${APP_BASE}/login`}
+            href={`${APP_BASE}/auth`}
             className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
           >
             Login
           </a>
           <a
-            href={`${APP_BASE}/signup`}
+            href={`${APP_BASE}/auth`}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600"
           >
             Sign Up Free

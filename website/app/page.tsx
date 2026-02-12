@@ -50,7 +50,7 @@ export default function HomePage() {
           </p>
           <div className="mt-10">
             <a
-              href={`${APP_BASE}/signup`}
+              href={`${APP_BASE}/auth`}
               className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600"
             >
               Start Practicing Now

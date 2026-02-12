@@ -6,9 +6,9 @@ const nextConfig = {
   trailingSlash: false,
   async redirects() {
     return [
-      { source: "/login", destination: `${APP_BASE}/login`, permanent: true },
-      { source: "/signup", destination: `${APP_BASE}/signup`, permanent: true },
-      { source: "/auth", destination: `${APP_BASE}/login`, permanent: true },
+      { source: "/login", destination: `${APP_BASE}/auth`, permanent: true },
+      { source: "/signup", destination: `${APP_BASE}/auth`, permanent: true },
+      { source: "/auth", destination: `${APP_BASE}/auth`, permanent: true },
     ];
   },
 };
