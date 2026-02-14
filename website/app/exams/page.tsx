@@ -28,13 +28,13 @@ export default async function ExamsDirectoryPage() {
   const displayTotal = totalExams >= 1000 ? `${(totalExams / 1000).toFixed(1)}k+` : `${totalExams}+`;
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-900/50">
+    <main className="min-h-screen bg-gray-50">
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white sm:text-4xl">
+          <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
             Explore All Categories
           </h1>
-          <p className="mt-2 text-lg text-slate-600 dark:text-slate-400">
+          <p className="mt-2 text-lg text-gray-600">
             Browse {displayTotal} exams across {categories.length} sector{categories.length !== 1 ? "s" : ""}.
           </p>
         </header>

@@ -76,13 +76,13 @@ export default async function CategoryListingPage({ params }: Props) {
   const IconComponent = getCategoryIcon(category.icon);
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-900/50">
+    <main className="min-h-screen bg-gray-50">
       {/* Top nav */}
-      <div className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/50">
+      <div className="border-b border-gray-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Back to All Exams
@@ -91,17 +91,17 @@ export default async function CategoryListingPage({ params }: Props) {
       </div>
 
       {/* Header: icon, title, "X Exams Found" */}
-      <header className="border-b border-slate-200 bg-white px-4 py-8 sm:px-6 lg:px-8 dark:border-slate-700 dark:bg-slate-800/50">
+      <header className="border-b border-gray-200 bg-white px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
               <IconComponent className="h-7 w-7" aria-hidden />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
                 {category.title}
               </h1>
-              <p className="mt-1 text-slate-600 dark:text-slate-400">
+              <p className="mt-1 text-gray-600">
                 {exams.length} exam{exams.length !== 1 ? "s" : ""} found
               </p>
             </div>
@@ -117,7 +117,7 @@ export default async function CategoryListingPage({ params }: Props) {
             ))}
           </div>
         ) : (
-          <p className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+          <p className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
             No exams in this category yet. Check back soon.
           </p>
         )}

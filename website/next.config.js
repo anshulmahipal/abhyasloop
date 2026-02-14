@@ -5,11 +5,7 @@ const nextConfig = {
   reactStrictMode: true,
   trailingSlash: false,
   async redirects() {
-    return [
-      { source: "/login", destination: APP_BASE, permanent: true },
-      { source: "/signup", destination: APP_BASE, permanent: true },
-      { source: "/auth", destination: APP_BASE, permanent: true },
-    ];
+    return [{ source: "/auth", destination: APP_BASE, permanent: true }];
   },
 };
 

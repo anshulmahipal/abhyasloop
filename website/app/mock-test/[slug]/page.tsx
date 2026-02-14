@@ -18,22 +18,22 @@ export default async function MockTestPage({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6">
-      <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+      <h1 className="text-3xl font-bold text-gray-900">
         {name} Mock Test
       </h1>
-      <p className="mt-4 text-slate-600 dark:text-slate-400">
+      <p className="mt-4 text-gray-600">
         Free mock tests for {name} are coming soon. You&apos;ll be able to start a timed test with AI-generated questions here.
       </p>
       <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
         <Link
           href={`/exam/${slug}`}
-          className="rounded-lg border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          className="rounded-lg border border-gray-300 bg-white px-6 py-3 font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
         >
           ← Back to {name} exam details
         </Link>
         <Link
           href="/"
-          className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          className="text-gray-600 hover:text-gray-900"
         >
           Home
         </Link>

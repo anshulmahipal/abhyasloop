@@ -11,6 +11,11 @@ import {
   type LandingCategory,
 } from "@/lib/landing-api";
 import { getLandingDataFromSupabase } from "@/lib/landing-data-fallback";
+import { Footer } from "@/components/Footer";
+import { FeaturesSection } from "@/components/FeaturesSection";
+import { StatsSection } from "@/components/StatsSection";
+import { FAQSection } from "@/components/FAQSection";
+import { CTASection } from "@/components/CTASection";
 
 const APP_BASE = "https://app.tyariwale.com";
 
@@ -40,14 +45,6 @@ const features = [
   },
 ];
 
-const examLinks = [
-  { label: "UPSC", slug: "upsc" },
-  { label: "SSC", slug: "ssc" },
-  { label: "Banking", slug: "banking" },
-  { label: "Railway", slug: "railway" },
-  { label: "Defence", slug: "defence" },
-];
-
 export default async function HomePage() {
   let categories: LandingCategory[] = [];
   let featured_exams: FeaturedExam[] = [];
@@ -56,7 +53,6 @@ export default async function HomePage() {
     let data = await fetchLandingData();
     categories = Array.isArray(data.categories) ? data.categories : [];
     featured_exams = Array.isArray(data.featured_exams) ? data.featured_exams : [];
-    // Production fallback: if Edge Function failed (empty data), fetch directly from Supabase
     if (categories.length === 0 && featured_exams.length === 0) {
       const fallback = await getLandingDataFromSupabase();
       if (fallback) {
@@ -65,7 +61,6 @@ export default async function HomePage() {
       }
     }
   } catch (_e) {
-    // already logged; try fallback once
     try {
       const fallback = await getLandingDataFromSupabase();
       if (fallback) {
@@ -78,20 +73,23 @@ export default async function HomePage() {
   }
 
   return (
-    <main>
+    <main className="bg-white">
       {/* Hero */}
-      <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white px-4 py-20 dark:border-slate-800 dark:from-slate-900 dark:to-slate-900 sm:px-6 sm:py-28 lg:px-8">
+      <section className="relative overflow-hidden border-b border-gray-200 bg-white px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl lg:text-6xl">
-            India&apos;s First AI-Powered Exam Hall.
+          <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
+            India&apos;s First <span className="text-emerald-600">AI-Powered</span> Exam Hall.
           </h1>
-          <p className="mt-4 text-lg text-slate-600 dark:text-slate-400 sm:text-xl">
-            Unlimited Practice for UPSC, SSC, and Banking.
+          <p className="mt-4 text-lg text-gray-600 sm:text-xl">
+            <span className="font-semibold text-emerald-700">
+              Built by Aspirants, For Aspirants.
+            </span>{" "}
+            The most trusted community for Government Exam preparation in India.
           </p>
           <div className="mt-10">
             <a
               href={APP_BASE}
-              className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+              className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
             >
               Start Practicing Now
             </a>
@@ -99,21 +97,24 @@ export default async function HomePage() {
         </div>
       </section>
 
+      <FeaturesSection />
+      <StatsSection />
+
       {/* Explore by Category */}
-      <section className="border-b border-slate-200 bg-white px-4 py-16 dark:border-slate-800 dark:bg-slate-900/30 sm:px-6 lg:px-8">
+      <section className="border-b border-gray-200 bg-white px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-3xl font-bold text-gray-900">
                 Explore Exams by Category
               </h2>
-              <p className="mt-2 text-gray-600 dark:text-slate-400">
+              <p className="mt-2 text-gray-600">
                 Find the perfect government job based on your skills.
               </p>
             </div>
             <Link
               href="/exams"
-              className="inline-flex shrink-0 items-center font-semibold text-indigo-600 transition-colors hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+              className="inline-flex shrink-0 items-center font-semibold text-emerald-600 transition-colors hover:text-emerald-700"
             >
               View All Categories <span className="ml-2">→</span>
             </Link>
@@ -125,15 +126,15 @@ export default async function HomePage() {
                 <Link
                   key={cat.id}
                   href={`/exams/${cat.slug}`}
-                  className="flex flex-col items-center rounded-xl border border-slate-200 bg-slate-50/50 p-6 text-center transition-colors hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-indigo-600 dark:hover:bg-indigo-950/30"
+                  className="flex flex-col items-center rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm transition-colors hover:border-emerald-200 hover:shadow-md"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
                     <Icon className="h-6 w-6" aria-hidden />
                   </div>
-                  <h3 className="mt-3 font-semibold text-slate-900 dark:text-white">
+                  <h3 className="mt-3 font-semibold text-gray-900">
                     {cat.title}
                   </h3>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  <p className="mt-1 text-sm text-gray-500">
                     {cat.total_exams_count} exam{cat.total_exams_count !== 1 ? "s" : ""}
                   </p>
                 </Link>
@@ -144,9 +145,9 @@ export default async function HomePage() {
       </section>
 
       {/* Featured National Exams */}
-      <section className="border-b border-slate-200 bg-slate-50/50 px-4 py-16 dark:border-slate-800 dark:bg-slate-900/50 sm:px-6 lg:px-8">
+      <section className="border-b border-gray-200 bg-gray-50 px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+          <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
             Featured National Exams
           </h2>
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -155,20 +156,20 @@ export default async function HomePage() {
               return (
                 <article
                   key={exam.id}
-                  className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-slate-700 dark:bg-slate-800/50"
+                  className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                    <span className="text-lg font-bold text-emerald-600">
                       {exam.short_name}
                     </span>
-                    <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300">
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
                       {exam.exam_level}
                     </span>
                   </div>
-                  <h3 className="mt-3 text-base font-semibold text-slate-900 dark:text-white">
+                  <h3 className="mt-3 text-base font-semibold text-gray-900">
                     {exam.title}
                   </h3>
-                  <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                  <p className="mt-2 text-sm text-gray-600">
                     {exam.conducting_body}
                   </p>
                   {topicTags.length > 0 && (
@@ -176,7 +177,7 @@ export default async function HomePage() {
                       {topicTags.map((topic) => (
                         <span
                           key={topic}
-                          className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                          className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
                         >
                           {topic}
                         </span>
@@ -191,22 +192,22 @@ export default async function HomePage() {
       </section>
 
       {/* Features */}
-      <section className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+      <section className="bg-white px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
         <div className="mx-auto max-w-6xl">
           <h2 className="sr-only">Features</h2>
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {features.map(({ title, description, icon: Icon }) => (
               <article
                 key={title}
-                className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900/50"
+                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
                   <Icon className="h-5 w-5" aria-hidden />
                 </div>
-                <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">
+                <h3 className="mt-4 text-lg font-semibold text-gray-900">
                   {title}
                 </h3>
-                <p className="mt-2 text-slate-600 dark:text-slate-400">
+                <p className="mt-2 text-gray-600">
                   {description}
                 </p>
               </article>
@@ -215,30 +216,9 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-slate-50 px-4 py-10 dark:border-slate-800 dark:bg-slate-900/50 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              © 2026 TyariWale. All rights reserved.
-            </p>
-            <nav
-              className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-sm"
-              aria-label="Exams"
-            >
-              {examLinks.map(({ label, slug }) => (
-                <Link
-                  key={slug}
-                  href={`/exams/${slug}`}
-                  className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                >
-                  {label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </div>
-      </footer>
+      <FAQSection />
+      <CTASection />
+      <Footer />
     </main>
   );
 }

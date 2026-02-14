@@ -78,13 +78,13 @@ export default async function ExamDetailsPage({ params }: Props) {
   const IconComponent = getCategoryIcon(exam.icon);
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-900/50">
+    <main className="min-h-screen bg-gray-50">
       {/* Top nav */}
-      <div className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/50">
+      <div className="border-b border-gray-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6 lg:px-8">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Back to All Exams
@@ -108,7 +108,7 @@ export default async function ExamDetailsPage({ params }: Props) {
               <IconComponent className="h-8 w-8" aria-hidden />
             </div>
             <div className="min-w-0 flex-1">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
                 {exam.title}
               </h1>
               {exam.conducting_body && (
@@ -129,18 +129,18 @@ export default async function ExamDetailsPage({ params }: Props) {
           {/* Left: Content */}
           <div className="space-y-8">
             {/* Overview */}
-            <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
-                <BookOpen className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                <BookOpen className="h-5 w-5 text-emerald-600" aria-hidden />
                 Overview
               </h2>
               <div className="mt-4">
                 {exam.description ? (
-                  <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-300">
+                  <p className="whitespace-pre-wrap text-gray-600">
                     {exam.description}
                   </p>
                 ) : (
-                  <p className="text-slate-500 dark:text-slate-400">
+                  <p className="text-gray-500">
                     No description available for this exam.
                   </p>
                 )}
@@ -148,9 +148,9 @@ export default async function ExamDetailsPage({ params }: Props) {
             </section>
 
             {/* Syllabus Topics */}
-            <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-white">
-                <ClipboardList className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                <ClipboardList className="h-5 w-5 text-emerald-600" aria-hidden />
                 Syllabus Topics
               </h2>
               {topicLabels.length > 0 ? (
@@ -158,14 +158,14 @@ export default async function ExamDetailsPage({ params }: Props) {
                   {topicLabels.map((label) => (
                     <div
                       key={label}
-                      className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-700/30 dark:text-slate-300"
+                      className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700"
                     >
                       {label}
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="mt-4 text-slate-500 dark:text-slate-400">
+                <p className="mt-4 text-gray-500">
                   Syllabus topics will be updated soon.
                 </p>
               )}
@@ -174,32 +174,32 @@ export default async function ExamDetailsPage({ params }: Props) {
 
           {/* Right: Sticky sidebar */}
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
-              <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
-                <Info className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                <Info className="h-4 w-4 text-emerald-600" aria-hidden />
                 Exam Facts
               </h3>
               <dl className="mt-4 space-y-4">
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Level</dt>
-                  <dd className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{exam.exam_level ?? "—"}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Level</dt>
+                  <dd className="mt-1 text-sm font-medium text-gray-900">{exam.exam_level ?? "—"}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Type</dt>
-                  <dd className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{exam.recruitment_type ?? "—"}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Type</dt>
+                  <dd className="mt-1 text-sm font-medium text-gray-900">{exam.recruitment_type ?? "—"}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Mode</dt>
-                  <dd className="mt-1 text-sm font-medium text-slate-900 dark:text-white">Online</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">Mode</dt>
+                  <dd className="mt-1 text-sm font-medium text-gray-900">Online</dd>
                 </div>
               </dl>
             </div>
-            <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/50 p-6 dark:border-emerald-800 dark:bg-emerald-950/30">
-              <p className="text-base font-semibold text-slate-900 dark:text-white">Ready to practice?</p>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Start a free mock test and get instant feedback.</p>
+            <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50 p-6">
+              <p className="text-base font-semibold text-gray-900">Ready to practice?</p>
+              <p className="mt-1 text-sm text-gray-600">Start a free mock test and get instant feedback.</p>
               <Link
                 href={`/mock-test/${slug}`}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
               >
                 <Rocket className="h-5 w-5" aria-hidden />
                 Start Free Mock Test
