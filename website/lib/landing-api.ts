@@ -45,8 +45,8 @@ export async function fetchLandingData(): Promise<GetLandingDataResponse> {
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      const err = await res.text();
-      console.error("get-landing-data error:", res.status, err);
+      const errText = await res.text();
+      console.error(`get-landing-data HTTP ${res.status}:`, errText.slice(0, 200));
       return { categories: [], featured_exams: [] };
     }
 
@@ -56,7 +56,8 @@ export async function fetchLandingData(): Promise<GetLandingDataResponse> {
       featured_exams: data.featured_exams ?? [],
     };
   } catch (e) {
-    console.error("get-landing-data fetch failed:", e);
+    const err = e instanceof Error ? e : new Error(String(e));
+    console.error("get-landing-data fetch failed:", err.message, "cause:", (e as { cause?: unknown })?.cause);
     return { categories: [], featured_exams: [] };
   }
 }

@@ -10,6 +10,7 @@ import {
   type FeaturedExam,
   type LandingCategory,
 } from "@/lib/landing-api";
+import { getLandingDataFromSupabase } from "@/lib/landing-data-fallback";
 
 const APP_BASE = "https://app.tyariwale.com";
 
@@ -52,11 +53,28 @@ export default async function HomePage() {
   let featured_exams: FeaturedExam[] = [];
 
   try {
-    const data = await fetchLandingData();
+    let data = await fetchLandingData();
     categories = Array.isArray(data.categories) ? data.categories : [];
     featured_exams = Array.isArray(data.featured_exams) ? data.featured_exams : [];
+    // Production fallback: if Edge Function failed (empty data), fetch directly from Supabase
+    if (categories.length === 0 && featured_exams.length === 0) {
+      const fallback = await getLandingDataFromSupabase();
+      if (fallback) {
+        categories = fallback.categories ?? [];
+        featured_exams = fallback.featured_exams ?? [];
+      }
+    }
   } catch (_e) {
-    // already logged in fetchLandingData; render with empty data
+    // already logged; try fallback once
+    try {
+      const fallback = await getLandingDataFromSupabase();
+      if (fallback) {
+        categories = fallback.categories ?? [];
+        featured_exams = fallback.featured_exams ?? [];
+      }
+    } catch {
+      // render with empty data
+    }
   }
 
   return (
@@ -84,7 +102,7 @@ export default async function HomePage() {
       {/* Explore by Category */}
       <section className="border-b border-slate-200 bg-white px-4 py-16 dark:border-slate-800 dark:bg-slate-900/30 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-12 flex items-end justify-between">
+          <div className="mb-12 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
                 Explore Exams by Category
@@ -95,7 +113,7 @@ export default async function HomePage() {
             </div>
             <Link
               href="/exams"
-              className="hidden items-center font-semibold text-indigo-600 transition-colors hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 md:flex"
+              className="inline-flex shrink-0 items-center font-semibold text-indigo-600 transition-colors hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
             >
               View All Categories <span className="ml-2">→</span>
             </Link>
