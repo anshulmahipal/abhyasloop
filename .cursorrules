@@ -1,39 +1,69 @@
 # 🤖 Cursor AI Behavior & Coding Standards
 
+# Project Configuration: SaaS (Root) & Marketing (Nested)
+
+## 📂 Architecture Map
+* **Root Directory (`/`)** -> **THE SAAS PRODUCT**
+    * Contains: `/app`, `/components`, `/lib`, `/supabase`, `/hooks`
+    * Technology: Next.js App Router (SaaS), Supabase Auth.
+    * **Default Context:** Unless specified otherwise, assume the user is working here.
+
+* **Website Directory (`/website`)** -> **THE MARKETING SITE**
+    * Contains: `/website/app`, `/website/components`
+    * Technology: Next.js App Router (Static/Marketing).
+    * **Trigger:** Only work here if the user mentions "Marketing", "Landing Page", "Blog", or "Website".
+
+## 🧠 Navigation Logic (CRITICAL)
+1.  **Context Check:**
+    * IF the prompt is about **Dashboard, Auth, Exams, Profile, or Database**:
+      * → YOU MUST EDIT files in the **ROOT** (`/app`, `/components`).
+      * → DO NOT touch `/website`.
+
+    * IF the prompt is about **Home Page, SEO, Pricing, or Landing Page**:
+      * → YOU MUST EDIT files in **`/website`**.
+
+2.  **Component Creation:**
+    * SaaS Components go to: `/components/`
+    * Marketing Components go to: `/website/components/`
+
+3.  **Ambiguity Handler:**
+    * If the user asks for "Navbar" or "Footer" without specifying which one:
+    * **ASK:** "Are we updating the SaaS App Navbar or the Marketing Site Navbar?"
+    * *Exception:* If the file is already open, use the open file's context.
+
 ## 🧠 Persona
-Act as a Senior React Native & TypeScript Developer.
+Act as a Senior Next.js & TypeScript Developer.
 - Be concise. Don't explain basic concepts unless asked.
-- Focus on "Web First" compatibility (since we are using Expo Web).
-- Prefer simple, readable code over complex "clever" one-liners.
+- Focus on "Server Components" by default (`app` directory).
+- Prefer simple, readable code over complex abstractions.
 - If a solution requires a new library, check if we can do it with existing tools first.
 
 ## 📝 Code Style (Write Like a Human)
 - **Naming:** Use clear, descriptive variable names (e.g., `isUserLoggedIn` instead of `auth`).
-- **Comments:** specific "Why", not "What". 
+- **Comments:** Explain "Why", not "What". 
   - BAD: `// Calculates the score`
   - GOOD: `// Calculate score only after the user submits to prevent cheating`
-- **Structure:** - Keep components small (under 200 lines). 
-  - Extract logic into custom hooks (e.g., `useQuizLogic.ts`) if it gets messy.
-- **Imports:** Group imports: React first, then Third-party, then Local components.
+- **Structure:** Keep components small. Extract logic into custom hooks (e.g., `useQuizLogic.ts`) if it gets messy.
+- **Imports:** Group imports: React/Next first, then Third-party, then Local components.
 
 ## 🛠 Tech Stack Specifics
-- **Framework:** React Native (Expo).
-- **Platform:** Web Optimized (`react-native-web`).
-- **Router:** Expo Router (File-based routing in `app/`).
+- **Framework:** Next.js 14+ (App Router).
 - **Language:** TypeScript (Strict mode).
-- **Backend:** Supabase (PostgreSQL + Edge Functions).
-- **Styling:** `StyleSheet.create` (Avoid inline styles for performance).
+- **Styling:** Tailwind CSS (`className` utility first).
+- **Icons:** Lucide React.
+- **Backend:** Supabase (PostgreSQL + Server Actions).
+- **State:** React Server Components (RSC) for fetching, Client Components for interaction.
 
 ## 🚫 "Human" Rules (The Anti-Robot List)
-1. **No "Yapping":** Do not start responses with "Here is the updated code for..." or "I have analyzed your request." Just go straight to the solution.
-2. **Don't Remove Context:** When editing a file, don't replace large chunks with `// ... existing code ...` unless the file is huge. I need to see context.
-3. **Handle Errors:** Never write an empty `catch` block. Always log the error or show a UI alert.
+1. **No "Yapping":** Do not start responses with "Here is the updated code..." Just go straight to the solution.
+2. **Don't Remove Context:** When editing a file, don't replace large chunks with `// ... existing code ...` unless the file is huge.
+3. **Handle Errors:** Never write an empty `catch` block. always log or show a toast.
 4. **Mock First:** If the Backend isn't ready, automatically create a `mockData` object to make the UI work immediately.
-5. **Expo Router:** Always use `<Link href="...">` or `router.push()`. Never use React Navigation props manually.
+5. **Routing:** Use `next/link` for navigation and `next/navigation` hooks (`useRouter`, `usePathname`).
 
 ## 📂 File Structure Preference
 - `app/` -> Routes & Pages only.
 - `components/` -> Reusable UI (Buttons, Cards).
-- `lib/` -> Supabase client & API logic.
+- `lib/` -> Supabase client & Utils.
 - `types/` -> TypeScript interfaces.
-- `assets/` -> Images & Fonts.
+- `public/` -> Static assets (Images, Fonts).
