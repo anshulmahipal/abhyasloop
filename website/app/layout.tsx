@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { GoogleAnalytics } from "@next/third-parties/google";
+import Script from "next/script";
 import { Navbar } from "@/components/Navbar";
 import "./globals.css";
+
+const GA_MEASUREMENT_ID = "G-ZDM3403YPM";
 
 const BASE_URL = "https://www.tyariwale.com";
 
@@ -36,8 +38,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="gtag-config" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_MEASUREMENT_ID}');
+          `}
+        </Script>
+      </head>
       <body className="min-h-screen bg-white font-sans text-gray-900 antialiased">
-        <GoogleAnalytics gaId="G-ZDM3403YPM" />
         <Navbar />
         {children}
         <script
