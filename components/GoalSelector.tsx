@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionHeader: {
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#f3f4f6',
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginBottom: 12,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   sectionHeaderText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#374151',
   },
   chipsRow: {
     flexDirection: 'row',
@@ -214,8 +214,8 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
   },
   examChipSelected: {
-    backgroundColor: '#FF6B35',
-    borderColor: '#FF6B35',
+    backgroundColor: '#059669',
+    borderColor: '#059669',
   },
   examChipText: {
     fontSize: 14,
@@ -263,15 +263,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     paddingHorizontal: 32,
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#059669',
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#FF6B35',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 8,
   },

@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   },
   fill: {
     height: '100%',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
     borderRadius: 4,
   },
 });

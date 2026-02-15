@@ -108,7 +108,7 @@ export default function FeedbackDetailPage() {
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF512F" />
+          <ActivityIndicator size="large" color="#059669" />
         </View>
       </SafeAreaView>
     );
@@ -129,7 +129,7 @@ export default function FeedbackDetailPage() {
           <View style={styles.placeholder} />
         </View>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color="#FF512F" />
+          <Ionicons name="alert-circle" size={48} color="#059669" />
           <Text style={styles.errorText}>⚠️ {error || 'Feedback not found'}</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -249,13 +249,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   retryButton: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   },
   categoryBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,

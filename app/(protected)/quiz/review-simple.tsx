@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   doneButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FF512F',
+    color: '#059669',
   },
   placeholder: {
     width: 40,

@@ -311,7 +311,7 @@ export default function MistakesPage() {
       <SafeAreaView style={styles.container} edges={['top']}>
         {renderHeader()}
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color="#059669" />
           <Text style={styles.loadingText}>Loading your mistakes...</Text>
         </View>
       </SafeAreaView>
@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
   retryButton: {
     paddingVertical: 12,
     paddingHorizontal: 24,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
     borderRadius: 8,
   },
   retryButtonText: {
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: '#667EEA',
+    backgroundColor: '#059669',
   },
   topicBadgeText: {
     fontSize: 12,

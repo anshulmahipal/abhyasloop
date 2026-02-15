@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Infinity,
   LayoutTemplate,
@@ -77,7 +78,16 @@ export default async function HomePage() {
       {/* Hero */}
       <section className="relative overflow-hidden border-b border-gray-200 bg-white px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
+          <Image
+            src="/logo.png"
+            alt="TyariWale - India's First AI-Powered Exam Hall for UPSC, SSC and Banking"
+            width={120}
+            height={120}
+            priority
+            sizes="(max-width: 768px) 80px, 120px"
+            className="mx-auto"
+          />
+          <h1 className="mt-6 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
             India&apos;s First <span className="text-emerald-600">AI-Powered</span> Exam Hall.
           </h1>
           <p className="mt-4 text-lg text-gray-600 sm:text-xl">

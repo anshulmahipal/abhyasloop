@@ -10,8 +10,10 @@ import {
   useWindowDimensions,
   ScrollView,
   Linking,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 
 type AuthMode = 'signin' | 'signup';
@@ -187,8 +189,20 @@ export default function AuthScreen() {
     >
       <View style={[styles.container, isMobile && styles.containerMobile]}>
         <View style={styles.card}>
-          {/* Title */}
-          <Text style={styles.title}>Tyariwale</Text>
+          {/* Logo + Title + Slogan */}
+          <View style={styles.brandBlock}>
+            <Image
+              source={require('../assets/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityLabel="TyariWale logo"
+            />
+            <Text style={styles.title}>TyariWale</Text>
+            <View style={styles.sloganRow}>
+              <Ionicons name="school-outline" size={18} color="#059669" style={styles.sloganIcon} />
+              <Text style={styles.slogan}>For the aspirants, by the aspirants</Text>
+            </View>
+          </View>
 
           {/* Form */}
           <View style={styles.form}>
@@ -341,12 +355,35 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  brandBlock: {
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  logo: {
+    width: 88,
+    height: 88,
+    marginBottom: 8,
+  },
   title: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#059669',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 8,
+  },
+  sloganRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sloganIcon: {
+    marginRight: 6,
+  },
+  slogan: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
   form: {
     width: '100%',
@@ -371,13 +408,13 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
   },
   primaryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 8,
     marginBottom: 16,
-    shadowColor: '#007AFF',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -401,7 +438,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   secondaryButtonText: {
-    color: '#007AFF',
+    color: '#059669',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -416,7 +453,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   legalLink: {
-    color: '#6b7280',
+    color: '#059669',
     textDecorationLine: 'underline',
   },
 });

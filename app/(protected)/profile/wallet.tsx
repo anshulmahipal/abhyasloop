@@ -150,7 +150,7 @@ export default function WalletHistoryPage() {
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF512F" />
+          <ActivityIndicator size="large" color="#059669" />
         </View>
       </SafeAreaView>
     );

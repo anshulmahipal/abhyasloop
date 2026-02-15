@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, useWindowDimensions, Image } from 'react-native';
 import { Link } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { FeatureCard } from '../components/FeatureCard';
 import { logger } from '../lib/logger';
@@ -15,6 +16,16 @@ export default function LandingPage() {
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
       <View style={[styles.container, isMobile ? styles.containerMobile : styles.containerDesktop]}>
         <View style={[styles.heroSection, isMobile ? styles.heroSectionMobile : styles.heroSectionDesktop]}>
+          <View style={styles.heroBrand}>
+            <Image source={require('../assets/logo.png')} style={styles.heroLogo} resizeMode="contain" accessibilityLabel="TyariWale logo" />
+            <View style={styles.heroBrandTextWrap}>
+              <Text style={styles.heroBrandText}>TyariWale</Text>
+              <View style={styles.heroSloganRow}>
+                <Ionicons name="school-outline" size={18} color="#059669" style={styles.heroSloganIcon} />
+                <Text style={styles.heroSlogan}>For the aspirants, by the aspirants</Text>
+              </View>
+            </View>
+          </View>
           <Text style={[styles.heroTitle, isMobile && styles.heroTitleMobile]}>
             Master Govt Exams with Infinite Practice
           </Text>
@@ -98,6 +109,37 @@ const styles = StyleSheet.create({
     marginBottom: 80,
     paddingTop: 60,
   },
+  heroBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 28,
+  },
+  heroLogo: {
+    width: 72,
+    height: 72,
+  },
+  heroBrandTextWrap: {
+    flex: 1,
+  },
+  heroBrandText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#059669',
+    marginBottom: 4,
+  },
+  heroSloganRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  heroSloganIcon: {
+    marginRight: 6,
+  },
+  heroSlogan: {
+    fontSize: 15,
+    color: '#6b7280',
+    fontStyle: 'italic',
+  },
   heroTitle: {
     fontSize: 48,
     fontWeight: '700',
@@ -125,16 +167,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   ctaButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
     paddingVertical: 16,
     paddingHorizontal: 40,
     borderRadius: 12,
-    shadowColor: '#007AFF',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 8,
     ...Platform.select({

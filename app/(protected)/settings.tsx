@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Linking, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Linking, Alert, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -124,10 +124,10 @@ export default function SettingsPage() {
         {renderSection('App Info', (
           <View style={styles.appInfoItem}>
             <View style={styles.appLogo}>
-              <Text style={styles.appLogoText}>QM</Text>
+              <Image source={require('../../assets/logo.png')} style={styles.appLogoImage} resizeMode="contain" accessibilityLabel="TyariWale logo" />
             </View>
             <View style={styles.appInfoText}>
-              <Text style={styles.appName}>QuizMaster</Text>
+              <Text style={styles.appName}>TyariWale</Text>
               <Text style={styles.appVersion}>v1.0.0</Text>
             </View>
           </View>
@@ -153,7 +153,7 @@ export default function SettingsPage() {
               <Switch
                 value={notificationsEnabled}
                 onValueChange={setNotificationsEnabled}
-                trackColor={{ false: '#E0E0E0', true: '#FF512F' }}
+                trackColor={{ false: '#E0E0E0', true: '#059669' }}
                 thumbColor="#ffffff"
               />,
               false
@@ -272,15 +272,17 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 12,
-    backgroundColor: '#FF512F',
+    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
-  appLogoText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#ffffff',
+  appLogoImage: {
+    width: 44,
+    height: 44,
   },
   appInfoText: {
     flex: 1,

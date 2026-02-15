@@ -234,8 +234,8 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
   },
   categoryChipActive: {
-    backgroundColor: '#FF512F',
-    borderColor: '#FF512F',
+    backgroundColor: '#059669',
+    borderColor: '#059669',
   },
   categoryChipText: {
     fontSize: 14,
@@ -265,12 +265,12 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     width: '100%',
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 4,

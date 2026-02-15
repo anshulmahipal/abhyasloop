@@ -671,7 +671,7 @@ export default function QuizPage() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={[styles.centerContent, styles.errorContainer]}>
           <View style={styles.errorIconContainer}>
-            <Ionicons name="alert-circle" size={64} color="#FF6B35" />
+            <Ionicons name="alert-circle" size={64} color="#059669" />
           </View>
           <Text style={styles.errorTitle}>Unable to Load Quiz</Text>
           <Text style={styles.errorText}>{friendlyError}</Text>
@@ -697,7 +697,7 @@ export default function QuizPage() {
               style={[styles.errorButton, styles.errorButtonSecondary]}
               onPress={() => router.replace('/(protected)/dashboard')}
             >
-              <Ionicons name="home" size={20} color="#FF6B35" style={{ marginRight: 8 }} />
+              <Ionicons name="home" size={20} color="#374151" style={{ marginRight: 8 }} />
               <Text style={[styles.errorButtonText, styles.errorButtonTextSecondary]}>Back to Dashboard</Text>
             </TouchableOpacity>
           </View>
@@ -853,7 +853,7 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     borderRadius: 3,
   },
   reportButton: {
@@ -895,12 +895,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   explanationContainer: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f0fdf4',
     borderRadius: 12,
     padding: 20,
     marginTop: 20,
     borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
+    borderLeftColor: '#059669',
   },
   explanationTitle: {
     fontSize: 18,
@@ -932,17 +932,17 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   nextButton: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 8,
   },
@@ -1027,20 +1027,20 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   errorButtonPrimary: {
-    backgroundColor: '#FF6B35',
-    shadowColor: '#FF6B35',
+    backgroundColor: '#059669',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 6,
   },
   errorButtonSecondary: {
     backgroundColor: '#ffffff',
     borderWidth: 2,
-    borderColor: '#FF6B35',
+    borderColor: '#d1d5db',
   },
   errorButtonText: {
     color: '#ffffff',
@@ -1048,10 +1048,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   errorButtonTextSecondary: {
-    color: '#FF6B35',
+    color: '#374151',
   },
   retryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,

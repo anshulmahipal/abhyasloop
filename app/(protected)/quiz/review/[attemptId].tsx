@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: '#059669',
     fontWeight: '600',
   },
   headerTitle: {
@@ -645,7 +645,7 @@ const styles = StyleSheet.create({
   },
   navButton: {
     flex: 1,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 12,

@@ -5,7 +5,7 @@ const APP_BASE = "https://app.tyariwale.com";
 
 export function Navbar() {
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white">
+    <header className="navbar sticky top-0 z-50 w-full border-b border-gray-200 bg-white">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link
           href="/"

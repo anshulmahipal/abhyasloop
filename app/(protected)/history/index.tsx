@@ -201,11 +201,11 @@ export default function HistoryPage() {
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF512F" />
+          <ActivityIndicator size="large" color="#059669" />
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color="#FF512F" />
+          <Ionicons name="alert-circle" size={48} color="#059669" />
           <Text style={styles.errorText}>⚠️ {error}</Text>
           <Text style={styles.errorSubtext}>
             We couldn't load your quiz history. Please check your connection and try again.
@@ -289,13 +289,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   retryButton: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   emptyStateButton: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,

@@ -471,10 +471,10 @@ export default function QuizConfigPage() {
       onPress={onPress}
       activeOpacity={0.8}
     >
-      <Ionicons name={icon as any} size={32} color="#FF512F" />
+      <Ionicons name={icon as any} size={32} color="#059669" />
       <Text style={styles.gridCardTitle}>{title}</Text>
       {showResumeIcon && (
-        <Ionicons name="play-circle" size={24} color="#FF512F" style={styles.resumeIcon} />
+        <Ionicons name="play-circle" size={24} color="#059669" style={styles.resumeIcon} />
       )}
     </TouchableOpacity>
   );
@@ -483,7 +483,7 @@ export default function QuizConfigPage() {
     if (loadingRecent) {
       return (
         <View style={styles.recentLoadingContainer}>
-          <ActivityIndicator size="small" color="#FF512F" />
+          <ActivityIndicator size="small" color="#059669" />
         </View>
       );
     }
@@ -526,7 +526,7 @@ export default function QuizConfigPage() {
                 <Ionicons 
                   name={getTopicIcon(item.topic) as any} 
                   size={24} 
-                  color="#FF512F" 
+                  color="#059669" 
                 />
               </View>
               <View style={styles.recentCardContent}>
@@ -552,7 +552,7 @@ export default function QuizConfigPage() {
     if (loading && categoriesToRender.length === 0) {
       return (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF512F" />
+          <ActivityIndicator size="large" color="#059669" />
         </View>
       );
     }
@@ -600,7 +600,7 @@ export default function QuizConfigPage() {
           </>
         ) : (
           <>
-            <Ionicons name="book" size={24} color={isSelected ? "#FF512F" : "#666"} />
+            <Ionicons name="book" size={24} color={isSelected ? "#059669" : "#666"} />
             <Text style={[
               styles.topicCardTitle,
               isSelected && styles.topicCardTitleSelected,
@@ -778,7 +778,7 @@ export default function QuizConfigPage() {
             >
               {isLoadingCommunitySets ? (
                 <View style={styles.communityLoadingContainer}>
-                  <ActivityIndicator size="large" color="#FF512F" />
+                  <ActivityIndicator size="large" color="#059669" />
                 </View>
               ) : communitySets.length === 0 ? (
                 <View style={styles.communityEmptyState}>
@@ -798,7 +798,7 @@ export default function QuizConfigPage() {
                       <Ionicons 
                         name={getTopicIcon(item.topic) as any} 
                         size={32} 
-                        color="#FF512F" 
+                        color="#059669" 
                       />
                     </View>
 
@@ -849,7 +849,7 @@ export default function QuizConfigPage() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.errorScreenContainer}>
           <View style={styles.errorIconContainer}>
-            <Ionicons name="alert-circle" size={64} color="#FF6B35" />
+            <Ionicons name="alert-circle" size={64} color="#059669" />
           </View>
           <Text style={styles.errorScreenTitle}>Unable to Load Quiz</Text>
           <Text style={styles.errorScreenText}>{friendlyError}</Text>
@@ -876,7 +876,7 @@ export default function QuizConfigPage() {
                 style={[styles.errorScreenButton, styles.errorScreenButtonSecondary]}
                 onPress={handleShowCommunityRescue}
               >
-                <Ionicons name="layers" size={20} color="#FF6B35" style={{ marginRight: 8 }} />
+                <Ionicons name="layers" size={20} color="#059669" style={{ marginRight: 8 }} />
                 <Text style={[styles.errorScreenButtonText, styles.errorScreenButtonTextSecondary]}>Try Active Sets</Text>
               </TouchableOpacity>
             )}
@@ -889,7 +889,7 @@ export default function QuizConfigPage() {
                 router.replace('/(protected)/dashboard');
               }}
             >
-              <Ionicons name="home" size={20} color="#FF6B35" style={{ marginRight: 8 }} />
+              <Ionicons name="home" size={20} color="#059669" style={{ marginRight: 8 }} />
               <Text style={[styles.errorScreenButtonText, styles.errorScreenButtonTextSecondary]}>Back to Dashboard</Text>
             </TouchableOpacity>
           </View>
@@ -920,7 +920,7 @@ export default function QuizConfigPage() {
       {/* Content */}
       {loading && exams.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF512F" />
+          <ActivityIndicator size="large" color="#059669" />
         </View>
       ) : (
         <ScrollView
@@ -932,7 +932,7 @@ export default function QuizConfigPage() {
             {/* Show error banner if there's an error (non-blocking) */}
             {error && !showCommunityRescueModal && (
               <View style={styles.errorBanner}>
-                <Ionicons name="alert-circle" size={20} color="#FF6B35" />
+                <Ionicons name="alert-circle" size={20} color="#059669" />
                 <Text style={styles.errorBannerText}>{error}</Text>
                 <TouchableOpacity
                   onPress={() => setError(null)}
@@ -962,7 +962,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   titleBar: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingTop: 20,
     paddingBottom: 16,
     paddingHorizontal: 24,
@@ -1007,7 +1007,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   tabButtonActive: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
   },
   tabButtonText: {
     fontSize: 16,
@@ -1094,7 +1094,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   emptyStateButton: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -1221,9 +1221,9 @@ const styles = StyleSheet.create({
     borderWidth: 3,
   },
   topicCardSelected: {
-    borderColor: '#FF512F',
+    borderColor: '#059669',
     borderWidth: 4,
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
@@ -1239,7 +1239,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   topicCardTitleSelected: {
-    color: '#FF512F',
+    color: '#059669',
     fontWeight: '700',
   },
   modalSection: {
@@ -1270,7 +1270,7 @@ const styles = StyleSheet.create({
   },
   difficultySegmentActive: {
     backgroundColor: '#ffffff',
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -1285,7 +1285,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   difficultySegmentTextActive: {
-    color: '#FF512F',
+    color: '#059669',
     fontWeight: '700',
   },
   questionCountToggle: {
@@ -1305,7 +1305,7 @@ const styles = StyleSheet.create({
   },
   questionCountSegmentActive: {
     backgroundColor: '#ffffff',
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -1320,7 +1320,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   questionCountSegmentTextActive: {
-    color: '#FF512F',
+    color: '#059669',
     fontWeight: '700',
   },
   modalFooter: {
@@ -1347,10 +1347,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     paddingHorizontal: 24,
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     borderRadius: 8,
     alignItems: 'center',
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -1524,7 +1524,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   errorButton: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -1542,7 +1542,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#FF6B35',
+    borderLeftColor: '#059669',
     gap: 8,
   },
   errorBannerText: {
@@ -1607,8 +1607,8 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   errorScreenButtonPrimary: {
-    backgroundColor: '#FF6B35',
-    shadowColor: '#FF6B35',
+    backgroundColor: '#059669',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -1620,7 +1620,7 @@ const styles = StyleSheet.create({
   errorScreenButtonSecondary: {
     backgroundColor: '#ffffff',
     borderWidth: 2,
-    borderColor: '#FF6B35',
+    borderColor: '#059669',
   },
   errorScreenButtonText: {
     color: '#ffffff',
@@ -1628,6 +1628,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   errorScreenButtonTextSecondary: {
-    color: '#FF6B35',
+    color: '#059669',
   },
 });

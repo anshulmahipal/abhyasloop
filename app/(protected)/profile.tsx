@@ -158,7 +158,7 @@ export default function ProfilePage() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF512F" />
+          <ActivityIndicator size="large" color="#059669" />
         </View>
       </SafeAreaView>
     );
@@ -192,7 +192,7 @@ export default function ProfilePage() {
               </View>
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={60} color="#FF512F" />
+                <Ionicons name="person" size={60} color="#059669" />
               </View>
             )}
           </View>
@@ -203,7 +203,7 @@ export default function ProfilePage() {
               activeOpacity={0.7}
               style={styles.editIconButton}
             >
-              <Ionicons name="pencil" size={18} color="#FF512F" />
+              <Ionicons name="pencil" size={18} color="#059669" />
             </TouchableOpacity>
           </View>
           {memberSince && (
@@ -227,7 +227,7 @@ export default function ProfilePage() {
               {coins.toLocaleString()}
             </Text>
             <Text style={styles.statLabel}>Total Coins</Text>
-            <Ionicons name="wallet" size={24} color="#FF512F" style={styles.statIcon} />
+            <Ionicons name="wallet" size={24} color="#059669" style={styles.statIcon} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.statCard}
@@ -235,7 +235,7 @@ export default function ProfilePage() {
             activeOpacity={0.8}
           >
             {isLoadingRank ? (
-              <ActivityIndicator size="small" color="#FF512F" />
+              <ActivityIndicator size="small" color="#059669" />
             ) : (
               <Text 
                 style={styles.statValue}
@@ -247,7 +247,7 @@ export default function ProfilePage() {
               </Text>
             )}
             <Text style={styles.statLabel}>Global Rank</Text>
-            <Ionicons name="trophy" size={24} color="#FF512F" style={styles.statIcon} />
+            <Ionicons name="trophy" size={24} color="#059669" style={styles.statIcon} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.statCard}
@@ -263,7 +263,7 @@ export default function ProfilePage() {
               {currentFocus || 'None'}
             </Text>
             <Text style={styles.statLabel}>Focus</Text>
-            <Ionicons name="target" size={24} color="#FF512F" style={styles.statIcon} />
+            <Ionicons name="target" size={24} color="#059669" style={styles.statIcon} />
           </TouchableOpacity>
         </View>
 
@@ -273,7 +273,7 @@ export default function ProfilePage() {
           <View style={styles.chartCard}>
             {isLoadingChart ? (
               <View style={styles.chartLoadingContainer}>
-                <ActivityIndicator size="small" color="#FF512F" />
+                <ActivityIndicator size="small" color="#059669" />
               </View>
             ) : chartData.length === 0 ? (
               <View style={styles.chartEmptyContainer}>
@@ -284,13 +284,13 @@ export default function ProfilePage() {
                 data={chartData}
                 areaChart={true}
                 curved={true}
-                color="#FF512F"
-                startFillColor="#FF512F"
-                endFillColor="#FF512F"
+                color="#059669"
+                startFillColor="#059669"
+                endFillColor="#059669"
                 startOpacity={0.3}
                 endOpacity={0.1}
                 hideDataPoints={false}
-                dataPointsColor="#FF512F"
+                dataPointsColor="#059669"
                 thickness={3}
                 rulesType="solid"
                 rulesColor="#E0E0E0"
@@ -327,7 +327,7 @@ export default function ProfilePage() {
                 </Text>
                 {badge.unlocked && (
                   <View style={styles.badgeCheckmark}>
-                    <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                    <Ionicons name="checkmark-circle" size={20} color="#059669" />
                   </View>
                 )}
               </View>
@@ -386,12 +386,12 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
     borderWidth: 4,
-    borderColor: '#FF512F',
+    borderColor: '#059669',
   },
   avatarText: {
     fontSize: 48,
     fontWeight: '700',
-    color: '#FF512F',
+    color: '#059669',
   },
   userName: {
     fontSize: 28,
@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FF512F',
+    color: '#059669',
     marginBottom: 4,
     textAlign: 'center',
   },

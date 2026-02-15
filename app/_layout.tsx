@@ -37,7 +37,7 @@ function RootLayoutNav() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color="#059669" />
       </View>
     );
   }
@@ -46,7 +46,7 @@ function RootLayoutNav() {
     <Stack
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#f4511e',
+          backgroundColor: '#059669',
         },
         headerTintColor: '#fff',
         headerTitleStyle: {

@@ -184,7 +184,7 @@ export default function HistoryDetailPage() {
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF512F" />
+          <ActivityIndicator size="large" color="#059669" />
         </View>
       </SafeAreaView>
     );
@@ -205,7 +205,7 @@ export default function HistoryDetailPage() {
           <View style={styles.placeholder} />
         </View>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color="#FF512F" />
+          <Ionicons name="alert-circle" size={48} color="#059669" />
           <Text style={styles.errorText}>⚠️ {error || 'Quiz not found'}</Text>
           <Text style={styles.errorSubtext}>
             {error?.includes('not found') 
@@ -399,14 +399,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   retryButton: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   backToHistoryButtonText: {
-    color: '#007AFF',
+    color: '#059669',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
+    borderLeftColor: '#059669',
   },
   explanationTitle: {
     fontSize: 16,

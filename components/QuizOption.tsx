@@ -59,12 +59,12 @@ const styles = StyleSheet.create({
     borderColor: '#e0e0e0',
   },
   optionSelected: {
-    backgroundColor: '#e3f2fd',
-    borderColor: '#007AFF',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#059669',
   },
   optionCorrect: {
-    backgroundColor: '#e8f5e9',
-    borderColor: '#4CAF50',
+    backgroundColor: '#ecfdf5',
+    borderColor: '#059669',
   },
   optionIncorrect: {
     backgroundColor: '#ffebee',
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   optionTextCorrect: {
-    color: '#2e7d32',
+    color: '#047857',
     fontWeight: '600',
   },
   optionTextIncorrect: {
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   },
   correctMark: {
     fontSize: 24,
-    color: '#4CAF50',
+    color: '#059669',
     fontWeight: 'bold',
     marginLeft: 12,
   },

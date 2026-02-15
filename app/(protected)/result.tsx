@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
   scoreDisplay: {
     fontSize: 72,
     fontWeight: '700',
-    color: '#007AFF',
+    color: '#059669',
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -628,12 +628,12 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#007AFF',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -650,12 +650,12 @@ const styles = StyleSheet.create({
   buttonSecondary: {
     backgroundColor: '#ffffff',
     borderWidth: 2,
-    borderColor: '#007AFF',
+    borderColor: '#059669',
     shadowColor: '#000',
     shadowOpacity: 0.1,
   },
   buttonSecondaryText: {
-    color: '#007AFF',
+    color: '#059669',
     fontSize: 18,
     fontWeight: '600',
   },

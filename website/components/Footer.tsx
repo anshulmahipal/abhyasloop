@@ -11,7 +11,7 @@ const examLinks = [
 
 export function Footer() {
   return (
-    <footer className="border-t border-gray-200 bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
+    <footer className="footer border-t border-gray-200 bg-gray-50 px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           {/* Brand column */}
@@ -39,6 +39,29 @@ export function Footer() {
                 {label}
               </Link>
             ))}
+          </nav>
+          <nav
+            className="flex flex-wrap gap-x-6 gap-y-1 text-sm"
+            aria-label="Legal and support"
+          >
+            <Link
+              href="/privacy"
+              className="text-gray-600 transition-colors hover:text-gray-900"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              href="/terms"
+              className="text-gray-600 transition-colors hover:text-gray-900"
+            >
+              Terms of Service
+            </Link>
+            <Link
+              href="/contact"
+              className="text-gray-600 transition-colors hover:text-gray-900"
+            >
+              Contact Us
+            </Link>
           </nav>
         </div>
         <p className="mt-8 border-t border-gray-200 pt-8 text-sm text-gray-500">

@@ -402,9 +402,9 @@ export default function DashboardPage() {
                   fontSize: '15px',
                   fontWeight: '600',
                   borderRadius: '20px',
-                  border: '1px solid rgba(0, 122, 255, 0.2)',
-                  backgroundColor: 'rgba(0, 122, 255, 0.1)',
-                  color: '#007AFF',
+                  border: '1px solid #a7f3d0',
+                  backgroundColor: '#ecfdf5',
+                  color: '#059669',
                   cursor: isUpdatingFocus ? 'not-allowed' : 'pointer',
                   outline: 'none',
                   minWidth: '180px',
@@ -470,12 +470,12 @@ export default function DashboardPage() {
               </Modal>
             </>
           )}
-          <TouchableOpacity
+            <TouchableOpacity
             style={styles.editIconButton}
             onPress={() => setIsGoalModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="pencil" size={18} color="#007AFF" />
+            <Ionicons name="pencil" size={18} color="#059669" />
           </TouchableOpacity>
         </View>
       </View>
@@ -537,16 +537,13 @@ export default function DashboardPage() {
       <View style={styles.heroWidgetsRow}>
         {/* Streak Card */}
         <TouchableOpacity style={styles.heroWidgetCard} activeOpacity={0.9}>
-          <LinearGradient
-            colors={['#FF6B35', '#F7931E']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroWidgetGradient}
-          >
-            <Text style={styles.heroWidgetIcon}>🔥</Text>
+          <View style={styles.heroWidgetInner}>
+            <View style={styles.heroWidgetIconWrap}>
+              <Text style={styles.heroWidgetIcon}>🔥</Text>
+            </View>
             <Text style={styles.heroWidgetTitle}>Day Streak</Text>
             <Text style={styles.heroWidgetValue}>{streak}</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
 
         {/* Mistakes Card */}
@@ -555,16 +552,13 @@ export default function DashboardPage() {
           activeOpacity={0.9}
           onPress={() => router.push('/(protected)/quiz/mistakes')}
         >
-          <LinearGradient
-            colors={['#667EEA', '#764BA2']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroWidgetGradient}
-          >
-            <Text style={styles.heroWidgetIcon}>🧠</Text>
+          <View style={styles.heroWidgetInner}>
+            <View style={styles.heroWidgetIconWrap}>
+              <Text style={styles.heroWidgetIcon}>🧠</Text>
+            </View>
             <Text style={styles.heroWidgetTitle}>Mistakes</Text>
             <Text style={styles.heroWidgetValue}>{mistakesCount}</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       </View>
     );
@@ -609,9 +603,9 @@ export default function DashboardPage() {
 
   const getScoreColor = (score: number, total: number) => {
     const percentage = (score / total) * 100;
-    if (percentage > 80) return '#4CAF50'; // Green
-    if (percentage < 50) return '#F44336'; // Red
-    return '#FF9800'; // Orange
+    if (percentage > 80) return '#059669'; // Emerald
+    if (percentage < 50) return '#dc2626'; // Red
+    return '#d97706'; // Amber
   };
 
   const handleLogout = async () => {
@@ -817,36 +811,43 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     overflow: 'hidden',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
-  heroWidgetGradient: {
+  heroWidgetInner: {
     padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 140,
   },
+  heroWidgetIconWrap: {
+    backgroundColor: '#d1fae5',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
   heroWidgetIcon: {
-    fontSize: 48,
-    marginBottom: 8,
+    fontSize: 32,
   },
   heroWidgetTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#6b7280',
     marginBottom: 8,
-    opacity: 0.9,
   },
   heroWidgetValue: {
     fontSize: 36,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#111827',
   },
   // Performance Section
   performanceSection: {
@@ -868,14 +869,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 20,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
   performanceStat: {
     flex: 1,
@@ -884,12 +887,12 @@ const styles = StyleSheet.create({
   performanceValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#FF512F',
+    color: '#111827',
     marginBottom: 4,
   },
   performanceLabel: {
     fontSize: 12,
-    color: '#666',
+    color: '#6b7280',
     fontWeight: '500',
     textAlign: 'center',
   },
@@ -1075,29 +1078,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: '#ecfdf5',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(0, 122, 255, 0.2)',
+    borderColor: '#a7f3d0',
     minWidth: 180,
   },
   editIconButton: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: '#ecfdf5',
     borderWidth: 1,
-    borderColor: 'rgba(0, 122, 255, 0.2)',
+    borderColor: '#a7f3d0',
   },
   focusBarValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#007AFF',
+    color: '#059669',
     marginRight: 8,
     flex: 1,
   },
   focusBarArrow: {
     fontSize: 10,
-    color: '#007AFF',
+    color: '#059669',
     opacity: 0.7,
   },
   focusBarDropdownWeb: {
@@ -1107,7 +1110,7 @@ const styles = StyleSheet.create({
   addGoalButton: {
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
     borderRadius: 8,
   },
   addGoalButtonText: {
@@ -1142,7 +1145,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   dropdownOptionSelected: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#059669',
   },
   dropdownOptionText: {
     fontSize: 16,
@@ -1200,14 +1203,14 @@ const styles = StyleSheet.create({
     color: '#E8E8E8',
   },
   weeklyMockButton: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
     marginLeft: 16,
   },
   weeklyMockButtonText: {
-    color: '#2C3E50',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },

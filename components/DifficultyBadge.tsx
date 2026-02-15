@@ -5,9 +5,9 @@ interface DifficultyBadgeProps {
 }
 
 const difficultyColors = {
-  easy: '#4CAF50',
-  medium: '#FF9800',
-  hard: '#F44336',
+  easy: '#059669',
+  medium: '#d97706',
+  hard: '#dc2626',
 };
 
 export function DifficultyBadge({ difficulty }: DifficultyBadgeProps) {

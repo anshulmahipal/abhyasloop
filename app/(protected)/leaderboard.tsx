@@ -382,7 +382,7 @@ export default function LeaderboardPage() {
     if (isLoading) {
       return (
         <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color="#FF6B35" />
+          <ActivityIndicator size="large" color="#059669" />
           <Text style={styles.emptyText}>Loading leaderboard...</Text>
         </View>
       );
@@ -391,7 +391,7 @@ export default function LeaderboardPage() {
     if (error) {
       return (
         <View style={styles.emptyContainer}>
-          <Ionicons name="alert-circle" size={64} color="#FF6B35" />
+          <Ionicons name="alert-circle" size={64} color="#059669" />
           <Text style={styles.emptyText}>{error}</Text>
         </View>
       );
@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
   },
   listItemCurrent: {
     backgroundColor: 'rgba(255, 107, 53, 0.2)',
-    borderColor: '#FF6B35',
+    borderColor: '#059669',
     borderWidth: 2,
   },
   rankNumber: {

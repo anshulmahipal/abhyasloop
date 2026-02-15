@@ -58,8 +58,8 @@ export default function ProtectedLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#FF512F',
-        tabBarInactiveTintColor: '#A0A0A0',
+        tabBarActiveTintColor: '#059669',
+        tabBarInactiveTintColor: '#4b5563',
         tabBarLabelStyle: styles.tabBarLabel,
         tabBarIconStyle: styles.tabBarIcon,
         tabBarShowLabel: true,
@@ -242,16 +242,17 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingBottom: 10,
     paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0 -2px 8px rgba(0,0,0,0.1)' }
+      ? { boxShadow: '0 -2px 8px rgba(0,0,0,0.08)' }
       : {
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
+          shadowOpacity: 0.08,
           shadowRadius: 8,
           elevation: 10,
         }),
-    borderTopWidth: 0,
     ...(Platform.OS === 'web' && {
       maxWidth: 500,
       alignSelf: 'center',
@@ -271,16 +272,16 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     alignItems: 'center',
     justifyContent: 'center',
     top: -20,
     ...(Platform.OS === 'web'
-      ? { boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }
+      ? { boxShadow: '0 2px 4px rgba(5,150,105,0.35)' }
       : {
-          shadowColor: '#000',
+          shadowColor: '#059669',
           shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.3,
+          shadowOpacity: 0.35,
           shadowRadius: 4,
           elevation: 5,
         }),

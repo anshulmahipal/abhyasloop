@@ -12,7 +12,7 @@ export function CircularProgress({
   percentage,
   size = 150,
   strokeWidth = 16,
-  color = '#007AFF',
+  color = '#059669',
   backgroundColor = '#e0e0e0',
 }: CircularProgressProps) {
   // Clamp percentage between 0 and 100

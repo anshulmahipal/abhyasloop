@@ -174,17 +174,17 @@ export default function FeedbackIndexPage() {
           onPress={() => router.push('/(protected)/feedback/create')}
           activeOpacity={0.7}
         >
-          <Ionicons name="add" size={24} color="#FF512F" />
+          <Ionicons name="add" size={24} color="#059669" />
         </TouchableOpacity>
       </View>
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF512F" />
+          <ActivityIndicator size="large" color="#059669" />
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color="#FF512F" />
+          <Ionicons name="alert-circle" size={48} color="#059669" />
           <Text style={styles.errorText}>⚠️ {error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -259,13 +259,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   retryButton: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#FF512F',
+    shadowColor: '#059669',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   emptyStateButton: {
-    backgroundColor: '#FF512F',
+    backgroundColor: '#059669',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
