@@ -1,35 +1,58 @@
 # 🤖 Cursor AI Behavior & Coding Standards
 
-# Project Configuration: SaaS (Root) & Marketing (Nested)
+# Project Configuration: Hybrid Monorepo
+# 1. ROOT (/)        -> SaaS App (React Native / Expo)
+# 2. /website Folder -> Marketing Site (Next.js)
 
-## 📂 Architecture Map
-* **Root Directory (`/`)** -> **THE SAAS PRODUCT**
-    * Contains: `/app`, `/components`, `/lib`, `/supabase`, `/hooks`
-    * Technology: Next.js App Router (SaaS), Supabase Auth.
-    * **Default Context:** Unless specified otherwise, assume the user is working here.
+## 📂 Architecture Map & "Traffic Control"
 
-* **Website Directory (`/website`)** -> **THE MARKETING SITE**
-    * Contains: `/website/app`, `/website/components`
-    * Technology: Next.js App Router (Static/Marketing).
-    * **Trigger:** Only work here if the user mentions "Marketing", "Landing Page", "Blog", or "Website".
+### 📱 THE SAAS APP (Root Directory `/`)
+* **Trigger:** User asks about "App", "Dashboard", "Screen", "Mobile", "Expo", or edits files in `/app` (root).
+* **Tech Stack:**
+    * Framework: **React Native (Expo)**
+    * Routing: **Expo Router** (File-based routing)
+    * UI: `<View>`, `<Text>`, `<Pressable>`, `<SafeAreaView>` (NO HTML tags!)
+    * Styling: `StyleSheet` or `NativeWind` (if configured).
+    * Navigation: `expo-router` (`Link`, `router.push`)
+    * Icons: `lucide-react-native`
 
-## 🧠 Navigation Logic (CRITICAL)
-1.  **Context Check:**
-    * IF the prompt is about **Dashboard, Auth, Exams, Profile, or Database**:
-      * → YOU MUST EDIT files in the **ROOT** (`/app`, `/components`).
-      * → DO NOT touch `/website`.
+### 🌐 THE MARKETING SITE (`/website` Directory)
+* **Trigger:** User asks about "Landing Page", "SEO", "Website", "Blog", or edits files in `/website`.
+* **Tech Stack:**
+    * Framework: **Next.js 14+ (App Router)**
+    * UI: `<div>`, `<span>`, `<button>`, `<section>`
+    * Styling: **Tailwind CSS** (Standard)
+    * Navigation: `next/link`, `next/navigation`
+    * Icons: `lucide-react`
 
-    * IF the prompt is about **Home Page, SEO, Pricing, or Landing Page**:
-      * → YOU MUST EDIT files in **`/website`**.
+## 🧠 Smart Context Rules (The "Anti-Hallucination" Protocol)
+1.  **Check Location First:** * Before writing code, LOOK at the file path.
+    * If path starts with `website/` -> Use **Next.js/Web** logic.
+    * If path is in root `app/` -> Use **React Native/Mobile** logic.
 
-2.  **Component Creation:**
-    * SaaS Components go to: `/components/`
-    * Marketing Components go to: `/website/components/`
+2.  **Ambiguity Handler:**
+    * If the user says "Fix the Navbar":
+        * Check which file is open.
+        * If no file is open, ASK: "For the Expo App or the Marketing Website?"
 
-3.  **Ambiguity Handler:**
-    * If the user asks for "Navbar" or "Footer" without specifying which one:
-    * **ASK:** "Are we updating the SaaS App Navbar or the Marketing Site Navbar?"
-    * *Exception:* If the file is already open, use the open file's context.
+3.  **Forbidden Translations (CRITICAL):**
+    * NEVER use `onClick` in the Root App (Use `onPress`).
+    * NEVER use `<div>` or `<span>` in the Root App (Use `<View>` or `<Text>`).
+    * NEVER use `className` in Root App unless User confirms NativeWind is installed.
+    * NEVER use `react-router-dom` (Use `expo-router`).
+
+## 📝 Code Style & Patterns
+
+### For React Native (Root):
+* **Imports:** `import { View, Text, StyleSheet } from 'react-native';`
+* **Layout:** Use Flexbox. Remember `flexDirection` defaults to 'column' in RN.
+* **Platform:** Handle Platform specific logic (`Platform.OS === 'web'` vs `'ios'`).
+* **Safe Area:** Always wrap top-level screens in `<SafeAreaView>` (from `react-native-safe-area-context`).
+
+### For Next.js (Website):
+* **Images:** ALWAYS use `import Image from 'next/image'`.
+* **SEO:** Use `generateMetadata` for dynamic pages.
+* **Client vs Server:** Add `'use client'` only when using hooks (`useState`).
 
 ## 🧠 Persona
 Act as a Senior Next.js & TypeScript Developer.
@@ -67,3 +90,5 @@ Act as a Senior Next.js & TypeScript Developer.
 - `lib/` -> Supabase client & Utils.
 - `types/` -> TypeScript interfaces.
 - `public/` -> Static assets (Images, Fonts).
+
+

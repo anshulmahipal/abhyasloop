@@ -1,25 +1,14 @@
-import { Tabs, useRouter } from 'expo-router';
-import { View, Text, StyleSheet, ActivityIndicator, Platform, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
+import { View, Text, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { syncPendingMistakes } from '../../lib/mistakeSync';
+import { Sidebar } from '../../components/Sidebar';
+import { MobileNav } from '../../components/MobileNav';
 
-function QuizTabButton(props: any) {
-  const router = useRouter();
-  return (
-    <TouchableOpacity
-      {...props}
-      style={styles.quizTabButton}
-      onPress={() => router.push('/(protected)/quiz/config')}
-      activeOpacity={0.7}
-    >
-      <View style={styles.quizTabButtonContent}>
-        <Ionicons name="rocket" size={30} color="#FFFFFF" />
-      </View>
-    </TouchableOpacity>
-  );
-}
+const MD_BREAKPOINT = 768;
+const MOBILE_NAV_PADDING = 88;
 
 export default function ProtectedLayout() {
   const { session, loading } = useAuth();
@@ -53,61 +42,33 @@ export default function ProtectedLayout() {
     );
   }
 
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= MD_BREAKPOINT;
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: '#059669',
-        tabBarInactiveTintColor: '#4b5563',
-        tabBarLabelStyle: styles.tabBarLabel,
-        tabBarIconStyle: styles.tabBarIcon,
-        tabBarShowLabel: true,
-      }}
+    <SafeAreaView
+      style={[styles.shell, { flexDirection: isDesktop ? 'row' : 'column' }]}
+      edges={['top']}
     >
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={26} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="leaderboard"
-        options={{
-          title: 'Rankings',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={26} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="quiz_start"
-        options={{
-          title: '',
-          tabBarButton: (props) => <QuizTabButton {...props} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={26} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'settings' : 'settings-outline'} size={26} color={color} />
-          ),
-        }}
-      />
+      {isDesktop && <Sidebar />}
+      <View
+        style={[
+          styles.main,
+          !isDesktop && { paddingBottom: MOBILE_NAV_PADDING },
+        ]}
+      >
+        <Tabs
+          screenOptions={{
+            headerShown: false,
+            tabBarStyle: { display: 'none' },
+          }}
+        >
+          <Tabs.Screen name="dashboard" options={{ title: 'Home' }} />
+          <Tabs.Screen name="leaderboard" options={{ title: 'Rankings' }} />
+          <Tabs.Screen name="quiz_start" options={{ title: '' }} />
+          <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+          <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+          <Tabs.Screen name="stats" options={{ title: 'Stats' }} />
       <Tabs.Screen
         name="quiz"
         options={{
@@ -217,7 +178,10 @@ export default function ProtectedLayout() {
           tabBarStyle: { display: 'none' },
         }}
       />
-    </Tabs>
+        </Tabs>
+      </View>
+      {!isDesktop && <MobileNav />}
+    </SafeAreaView>
   );
 }
 
@@ -232,62 +196,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
-  tabBar: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    height: 70,
-    backgroundColor: '#ffffff',
-    borderRadius: 15,
-    paddingBottom: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0 -2px 8px rgba(0,0,0,0.08)' }
-      : {
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 10,
-        }),
-    ...(Platform.OS === 'web' && {
-      maxWidth: 500,
-      alignSelf: 'center',
-    }),
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  shell: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
   },
-  tabBarLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  tabBarIcon: {
-    marginTop: 4,
-  },
-  quizTabButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#059669',
-    alignItems: 'center',
-    justifyContent: 'center',
-    top: -20,
-    ...(Platform.OS === 'web'
-      ? { boxShadow: '0 2px 4px rgba(5,150,105,0.35)' }
-      : {
-          shadowColor: '#059669',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.35,
-          shadowRadius: 4,
-          elevation: 5,
-        }),
-  },
-  quizTabButtonContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  main: {
+    flex: 1,
   },
 });
