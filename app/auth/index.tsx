@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -47,6 +47,8 @@ export default function AuthScreen() {
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const resendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleAuth = async () => {
     setErrorMessage('');
@@ -181,21 +183,39 @@ export default function AuthScreen() {
   }, [isCallbackHandling]);
 
   const handleVerifyOtp = async () => {
-    const code = otpCode.trim().replace(/\s/g, '');
+    const code = otpCode.trim().replace(/\s/g, '').replace(/\D/g, '');
     if (!code || !pendingVerificationEmail) {
       setErrorMessage('Please enter the 6-digit code from your email.');
       return;
     }
+    if (code.length !== 6) {
+      setErrorMessage('Please enter all 6 digits.');
+      return;
+    }
     setErrorMessage('');
     setIsVerifyingOtp(true);
-    const { data, error } = await supabase.auth.verifyOtp({
+    // Try 'email' first (Supabase docs); fallback to 'signup' for some projects
+    let result = await supabase.auth.verifyOtp({
       email: pendingVerificationEmail,
       token: code,
-      type: 'signup',
+      type: 'email',
     });
+    if (result.error && /expired|invalid/.test(result.error.message.toLowerCase())) {
+      result = await supabase.auth.verifyOtp({
+        email: pendingVerificationEmail,
+        token: code,
+        type: 'signup',
+      });
+    }
     setIsVerifyingOtp(false);
+    const { data, error } = result;
     if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(
+        error.message +
+          (error.message.toLowerCase().includes('expired')
+            ? ' Use "Resend code" for a new one.'
+            : '')
+      );
       return;
     }
     if (data.session) {
@@ -203,6 +223,35 @@ export default function AuthScreen() {
       setOtpCode('');
       router.replace('/(protected)/dashboard');
     }
+  };
+
+  const handleResendOtp = async () => {
+    if (!pendingVerificationEmail || resendCooldown > 0) return;
+    setErrorMessage('');
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: pendingVerificationEmail,
+      options: { emailRedirectTo: getAuthRedirectBaseUrl() },
+    });
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    setOtpCode('');
+    setResendCooldown(60);
+    if (resendIntervalRef.current) clearInterval(resendIntervalRef.current);
+    resendIntervalRef.current = setInterval(() => {
+      setResendCooldown((s) => {
+        if (s <= 1) {
+          if (resendIntervalRef.current) {
+            clearInterval(resendIntervalRef.current);
+            resendIntervalRef.current = null;
+          }
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
   };
 
   const dismissPendingVerification = () => {
@@ -303,6 +352,16 @@ export default function AuthScreen() {
                 ) : (
                   <Text style={styles.primaryButtonText}>Verify with code</Text>
                 )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.resendButton}
+                onPress={handleResendOtp}
+                disabled={isVerifyingOtp || resendCooldown > 0}
+                activeOpacity={0.7}
+              >
+                <Text style={resendCooldown > 0 ? styles.resendCooldownText : styles.resendButtonText}>
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.secondaryButton}
@@ -668,5 +727,19 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontSize: 14,
     textAlign: 'center',
+  },
+  resendButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  resendButtonText: {
+    fontSize: 14,
+    color: '#059669',
+    fontWeight: '500',
+  },
+  resendCooldownText: {
+    fontSize: 14,
+    color: '#9CA3AF',
   },
 });
