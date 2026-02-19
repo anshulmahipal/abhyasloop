@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect, Fragment, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Modal, Pressable, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../../contexts/AuthContext';
-import { generateMockTest, generateQuiz } from '../../../lib/api';
+import { generateQuiz } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { useExamConfig } from '../../../hooks/useExamConfig';
 
@@ -129,28 +130,10 @@ export default function QuizConfigPage() {
   // Recent quizzes state
   const [recentQuizzes, setRecentQuizzes] = useState<RecentQuiz[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
-  
-  // Modal state
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedExam, setSelectedExam] = useState<Category | null>(null);
-  const [selectedTopic, setSelectedTopic] = useState<string | null | undefined>(undefined); // undefined = nothing selected, null = Mock Test, string = specific topic
-  const [selectedDifficulty, setSelectedDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [questionCount, setQuestionCount] = useState<string>('10');
-  
-  // Quiz generation state
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
-  const buttonDisableTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Error state
   const [error, setError] = useState<string | null>(null);
-  const [showErrorScreen, setShowErrorScreen] = useState(false);
-
-  // Community Rescue modal state
-  const [showCommunityRescueModal, setShowCommunityRescueModal] = useState(false);
-  const [communitySets, setCommunitySets] = useState<CommunitySet[]>([]);
-  const [isLoadingCommunitySets, setIsLoadingCommunitySets] = useState(false);
-
+  const [isGenerating, setIsGenerating] = useState(false);
+  
   const currentFocus = profile?.current_focus || 'General Knowledge';
 
   // Fetch recent quizzes from quiz_history table
@@ -182,65 +165,45 @@ export default function QuizConfigPage() {
     }
   }, [user]);
 
-  // Auto-refresh when screen comes into focus or user changes
   useEffect(() => {
     fetchRecentQuizzes();
   }, [fetchRecentQuizzes]);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (buttonDisableTimeoutRef.current) {
-        clearTimeout(buttonDisableTimeoutRef.current);
-      }
-    };
-  }, []);
+  // Refetch recent when user returns to this screen (e.g. after completing a test)
+  useFocusEffect(
+    useCallback(() => {
+      fetchRecentQuizzes();
+    }, [fetchRecentQuizzes])
+  );
 
   const handleCategoryPress = (category: Category) => {
-    setSelectedExam(category);
-    setSelectedTopic(undefined); // Reset selection - nothing selected initially
-    setModalVisible(true);
+    const title = (category as any).title || (category as any).name || 'Mock Test';
+    const topicsList = (category as any).topics ?? category.topics ?? [];
+    router.push({
+      pathname: '/(protected)/quiz/configure',
+      params: {
+        title,
+        topics: JSON.stringify(Array.isArray(topicsList) ? topicsList : []),
+        id: category.id,
+      },
+    });
   };
 
   const handleRecentTopicPress = (topic: RecentTopic) => {
-    // For recent topics, create a temporary category object
-    const tempCategory: Category = {
-      id: 'recent',
-      title: topic.name,
-      icon: 'book',
-      topics: [topic.name],
-    };
-    setSelectedExam(tempCategory);
-    setSelectedTopic(topic.name);
-    setModalVisible(true);
-  };
-
-  // Fetch community sets from RPC
-  const fetchCommunitySets = async () => {
-    try {
-      setIsLoadingCommunitySets(true);
-      const { data, error } = await supabase.rpc('get_community_sets');
-
-      if (error) {
-        console.error('Error fetching community sets:', error);
-        return;
-      }
-
-      if (data && Array.isArray(data)) {
-        setCommunitySets(data as CommunitySet[]);
-      }
-    } catch (err) {
-      console.error('Failed to fetch community sets:', err);
-    } finally {
-      setIsLoadingCommunitySets(false);
-    }
+    router.push({
+      pathname: '/(protected)/quiz/configure',
+      params: {
+        title: topic.name,
+        topics: JSON.stringify([topic.name]),
+        preselectedTopic: topic.name,
+      },
+    });
   };
 
   // Handle instant play with topic and difficulty
   const handleInstantPlay = async (topic: string, difficulty: 'easy' | 'medium' | 'hard') => {
     try {
       setIsGenerating(true);
-      setShowCommunityRescueModal(false);
 
       const response = await generateQuiz(topic, difficulty, currentFocus, 10);
 
@@ -262,178 +225,6 @@ export default function QuizConfigPage() {
     } finally {
       setIsGenerating(false);
     }
-  };
-
-  const handleStartQuiz = async () => {
-    if (!selectedExam || selectedTopic === undefined) {
-      Alert.alert('Select Option', 'Please select Mock Test or a specific topic to start the quiz.');
-      return;
-    }
-
-    // Set generating state immediately for UI feedback
-    setIsGenerating(true);
-
-    // Disable button for 2 seconds to prevent double-taps
-    setIsButtonDisabled(true);
-    if (buttonDisableTimeoutRef.current) {
-      clearTimeout(buttonDisableTimeoutRef.current);
-    }
-    buttonDisableTimeoutRef.current = setTimeout(() => {
-      setIsButtonDisabled(false);
-      buttonDisableTimeoutRef.current = null;
-    }, 2000);
-
-    try {
-      setShowCommunityRescueModal(false); // Ensure rescue modal is closed when starting
-      
-      let response;
-      let topicForQuiz: string;
-      
-      // Check if Mock Test was selected (selectedTopic === null)
-      if (selectedTopic === null) {
-        // Case A: Mock Test
-        response = await generateMockTest(
-          selectedExam.title,
-          selectedExam.topics,
-          selectedDifficulty
-        );
-        topicForQuiz = selectedExam.title; // Use subject title for mock test
-      } else {
-        // Case B: Specific Topic (Default)
-        // Call generate-quiz with subject and topic
-        topicForQuiz = selectedTopic;
-        const { data, error } = await supabase.functions.invoke('generate-quiz', {
-          body: {
-            subject: selectedExam.title,
-            topic: selectedTopic,
-            difficulty: selectedDifficulty.toLowerCase(),
-            userFocus: currentFocus.trim(),
-            questionCount: parseInt(questionCount, 10),
-          },
-        });
-
-        if (error) {
-          console.error('Supabase function error:', error);
-          
-          // Check for rate limit
-          const isRateLimit = error.status === 429 || 
-                             error.message?.includes('Please wait') ||
-                             error.message?.includes('active quiz');
-          
-          // Extract error message
-          let errorMessage = 'Failed to generate quiz. Please try again.';
-          if (error.message) {
-            errorMessage = error.message;
-          } else if (error.context?.msg) {
-            errorMessage = error.context.msg;
-          }
-          
-          const rateLimitError = new Error(errorMessage);
-          (rateLimitError as any).isRateLimit = isRateLimit;
-          throw rateLimitError;
-        }
-
-        // Validate response structure
-        if (!data) {
-          throw new Error('No data returned from quiz generation service');
-        }
-
-        // Check if response contains an error field
-        if (typeof data === 'object' && 'error' in data) {
-          const errorData = data as { error: string; details?: string };
-          const errorMessage = errorData.details || errorData.error || 'Failed to generate quiz';
-          
-          const isRateLimit = errorMessage.includes('Please wait') || 
-                             errorMessage.includes('active quiz') ||
-                             errorMessage.includes('1 minute');
-          
-          const rateLimitError = new Error(errorMessage);
-          (rateLimitError as any).isRateLimit = isRateLimit;
-          throw rateLimitError;
-        }
-
-        // Validate response format
-        if (!data.success || !Array.isArray(data.questions)) {
-          throw new Error('Invalid response format from quiz generation service');
-        }
-
-        // Validate questions array is not empty
-        if (data.questions.length === 0) {
-          throw new Error('No questions were generated. Please try again.');
-        }
-
-        response = data;
-      }
-      
-      // Close modal only after successful quiz generation, right before navigation
-      setModalVisible(false);
-      
-      router.push({
-        pathname: '/(protected)/quiz/[id]',
-        params: {
-          id: response.quizId,
-          topic: topicForQuiz,
-          difficulty: selectedDifficulty,
-          examType: currentFocus,
-        },
-      });
-    } catch (error) {
-      console.error('Failed to generate quiz:', error);
-      
-      // Set error message
-      const errorMessage = error instanceof Error
-        ? error.message
-        : 'Failed to generate quiz. Please try again.';
-      setError(errorMessage);
-      
-      // Close modal and show error screen
-      setModalVisible(false);
-      setIsGenerating(false);
-      setShowErrorScreen(true);
-      
-      // Also fetch community sets for rescue modal (shown as alternative)
-      await fetchCommunitySets();
-    } finally {
-      // Reset generating state - ensures button becomes clickable again on error
-      // On success, component unmounts anyway, so this is safe
-      setIsGenerating(false);
-    }
-  };
-
-  const getUserFriendlyError = (errorMessage: string): string => {
-    // Handle technical Edge Function errors
-    if (errorMessage.includes('non-2xx status code') || errorMessage.includes('Edge Function')) {
-      return 'Oops! Our quiz generator is having trouble right now. Please try again in a moment.';
-    }
-    
-    // Handle network errors
-    if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('timeout')) {
-      return 'Connection issue detected. Please check your internet and try again.';
-    }
-    
-    // Handle rate limit errors
-    if (errorMessage.includes('Please wait') || errorMessage.includes('rate limit')) {
-      return errorMessage; // Keep the friendly rate limit message
-    }
-    
-    // Return original message if it's already user-friendly, otherwise provide generic message
-    if (errorMessage.length < 100 && !errorMessage.includes('Error') && !errorMessage.includes('Failed')) {
-      return errorMessage;
-    }
-    
-    return 'Something went wrong while generating the quiz. Please try again.';
-  };
-
-  const handleRetryQuiz = () => {
-    setShowErrorScreen(false);
-    setError(null);
-    // User can try again by selecting options and clicking Start Quiz
-  };
-
-  const handleShowCommunityRescue = async () => {
-    setShowErrorScreen(false);
-    await fetchCommunitySets();
-    setShowCommunityRescueModal(true);
   };
 
   const renderTabSwitcher = () => (
@@ -489,18 +280,27 @@ export default function QuizConfigPage() {
     }
 
     if (recentQuizzes.length === 0) {
+      const categoriesToRender = exams.length > 0 ? (exams as Category[]) : CATEGORIES;
       return (
-        <View style={styles.emptyState}>
-          <Ionicons name="book-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyStateTitle}>No recent plays</Text>
-          <Text style={styles.emptyStateText}>Start exploring to build your quiz history!</Text>
-          <TouchableOpacity
-            style={styles.emptyStateButton}
-            onPress={() => setActiveTab('explore')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.emptyStateButtonText}>Find a Topic</Text>
-          </TouchableOpacity>
+        <View style={styles.emptyRecentContainer}>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>No recent plays</Text>
+            <Text style={styles.emptyStateText}>
+              Recent is empty because you haven't attempted any quiz yet. Pick an exam below to start.
+            </Text>
+          </View>
+          <Text style={styles.examsSectionLabel}>Exams</Text>
+          <View style={styles.gridWrapper}>
+            {categoriesToRender.map((item, index) => {
+              const displayTitle = (item as any).title || (item as any).name || 'Unknown';
+              const uniqueKey = item.id || `category-${index}`;
+              return (
+                <View key={uniqueKey} style={styles.gridItem}>
+                  {renderGridCard(displayTitle, item.icon as any, () => handleCategoryPress(item as Category))}
+                </View>
+              );
+            })}
+          </View>
         </View>
       );
     }
@@ -573,331 +373,6 @@ export default function QuizConfigPage() {
     );
   };
 
-  const renderTopicCard = (isMockTest: boolean, topicName?: string) => {
-    const isSelected = isMockTest 
-      ? selectedTopic === null 
-      : selectedTopic === topicName;
-    
-    return (
-      <TouchableOpacity
-        style={[
-          styles.topicCard,
-          isMockTest && styles.topicCardMockTest,
-          isSelected && styles.topicCardSelected,
-        ]}
-        onPress={() => setSelectedTopic(isMockTest ? null : topicName || null)}
-        activeOpacity={0.8}
-      >
-        {isMockTest ? (
-          <>
-            <Text style={styles.topicCardIcon}>🏆</Text>
-            <Text style={[
-              styles.topicCardTitle,
-              isSelected && styles.topicCardTitleSelected,
-            ]}>
-              Full Mock Test
-            </Text>
-          </>
-        ) : (
-          <>
-            <Ionicons name="book" size={24} color={isSelected ? "#059669" : "#666"} />
-            <Text style={[
-              styles.topicCardTitle,
-              isSelected && styles.topicCardTitleSelected,
-            ]}>
-              {topicName}
-            </Text>
-          </>
-        )}
-      </TouchableOpacity>
-    );
-  };
-
-  const renderModal = () => {
-    if (!selectedExam) return null;
-
-    return (
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{selectedExam.title}</Text>
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Horizontal ScrollView for Topics */}
-            <View style={styles.modalTopicsSection}>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.topicCardsContainer}
-              >
-                {/* Fixed Mock Test Card */}
-                {renderTopicCard(true)}
-                
-                {/* Dynamic Topic Cards */}
-                {selectedExam.topics.map((topic, index) => (
-                  <Fragment key={`topic-${index}-${topic}`}>
-                    {renderTopicCard(false, topic)}
-                  </Fragment>
-                ))}
-              </ScrollView>
-            </View>
-
-            {/* Difficulty Selection */}
-            <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Difficulty</Text>
-              <View style={styles.difficultyToggle}>
-                {DIFFICULTY_LEVELS.map((difficulty) => {
-                  const isSelected = selectedDifficulty === difficulty;
-                  return (
-                    <TouchableOpacity
-                      key={difficulty}
-                      style={[
-                        styles.difficultySegment,
-                        isSelected && styles.difficultySegmentActive,
-                      ]}
-                      onPress={() => setSelectedDifficulty(difficulty)}
-                      activeOpacity={0.8}
-                    >
-                      <Text
-                        style={[
-                          styles.difficultySegmentText,
-                          isSelected && styles.difficultySegmentTextActive,
-                        ]}
-                      >
-                        {DIFFICULTY_LABELS[difficulty]}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Modal Footer - Play Button */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={[
-                  styles.modalStartButton,
-                  styles.modalStartButtonFull,
-                  (selectedTopic === undefined || isGenerating || isButtonDisabled) && styles.modalStartButtonDisabled,
-                  isGenerating && styles.modalStartButtonLoading,
-                ]}
-                onPress={handleStartQuiz}
-                disabled={selectedTopic === undefined || isGenerating || isButtonDisabled}
-                activeOpacity={isGenerating ? 0.7 : 0.8}
-              >
-                {isGenerating ? (
-                  <View style={styles.modalStartButtonLoadingContent}>
-                    <ActivityIndicator color="#ffffff" size="small" style={styles.modalStartButtonSpinner} />
-                    <Text style={styles.modalStartButtonText}>Creating Challenge...</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.modalStartButtonText}>Start Quiz</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-    );
-  };
-
-  const renderCommunityRescueModal = () => {
-    const getDifficultyColor = (difficulty: 'easy' | 'medium' | 'hard') => {
-      switch (difficulty.toLowerCase()) {
-        case 'easy':
-          return '#4CAF50';
-        case 'medium':
-          return '#FF9800';
-        case 'hard':
-          return '#F44336';
-        default:
-          return '#666';
-      }
-    };
-
-    const getDifficultyLabel = (difficulty: 'easy' | 'medium' | 'hard') => {
-      switch (difficulty.toLowerCase()) {
-        case 'easy':
-          return 'Easy';
-        case 'medium':
-          return 'Medium';
-        case 'hard':
-          return 'Hard';
-        default:
-          return difficulty;
-      }
-    };
-
-    return (
-      <Modal
-        visible={showCommunityRescueModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCommunityRescueModal(false)}
-      >
-        <Pressable 
-          style={styles.modalOverlay} 
-          onPress={() => setShowCommunityRescueModal(false)}
-        >
-          <Pressable 
-            style={styles.communityModalContent} 
-            onPress={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <View style={styles.communityModalHeader}>
-              <View>
-                <Text style={styles.communityModalTitle}>AI is Busy... Try these active sets!</Text>
-                <Text style={styles.communityModalSubtitle}>Jump into these popular topics while you wait.</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowCommunityRescueModal(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Community Sets List */}
-            <ScrollView 
-              style={styles.communitySetsScrollView}
-              contentContainerStyle={styles.communitySetsContainer}
-              showsVerticalScrollIndicator={false}
-            >
-              {isLoadingCommunitySets ? (
-                <View style={styles.communityLoadingContainer}>
-                  <ActivityIndicator size="large" color="#059669" />
-                </View>
-              ) : communitySets.length === 0 ? (
-                <View style={styles.communityEmptyState}>
-                  <Ionicons name="layers-outline" size={48} color="#ccc" />
-                  <Text style={styles.communityEmptyText}>No community sets available</Text>
-                </View>
-              ) : (
-                communitySets.map((item, index) => (
-                  <TouchableOpacity
-                    key={`community-${index}-${item.topic}-${item.difficulty}`}
-                    style={styles.communityCard}
-                    onPress={() => handleInstantPlay(item.topic, item.difficulty)}
-                    activeOpacity={0.8}
-                  >
-                    {/* Left Icon */}
-                    <View style={styles.communityCardIcon}>
-                      <Ionicons 
-                        name={getTopicIcon(item.topic) as any} 
-                        size={32} 
-                        color="#059669" 
-                      />
-                    </View>
-
-                    {/* Content */}
-                    <View style={styles.communityCardContent}>
-                      {/* Title and Badge */}
-                      <View style={styles.communityCardHeader}>
-                        <Text style={styles.communityCardTitle}>{item.topic}</Text>
-                        <View 
-                          style={[
-                            styles.difficultyBadge,
-                            { backgroundColor: getDifficultyColor(item.difficulty) }
-                          ]}
-                        >
-                          <Text style={styles.difficultyBadgeText}>
-                            {getDifficultyLabel(item.difficulty)}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Footer */}
-                      <View style={styles.communityCardFooter}>
-                        <Text style={styles.communityCardFooterText}>
-                          Fresh {timeAgo(item.last_active)} • {item.question_count} Qs available
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Right Arrow */}
-                    <View style={styles.communityCardArrow}>
-                      <Ionicons name="chevron-forward" size={20} color="#ccc" />
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
-    );
-  };
-
-  // Show error screen if quiz generation failed
-  if (showErrorScreen && error) {
-    const friendlyError = getUserFriendlyError(error);
-    
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.errorScreenContainer}>
-          <View style={styles.errorIconContainer}>
-            <Ionicons name="alert-circle" size={64} color="#059669" />
-          </View>
-          <Text style={styles.errorScreenTitle}>Unable to Load Quiz</Text>
-          <Text style={styles.errorScreenText}>{friendlyError}</Text>
-          
-          {error.includes('non-2xx') && (
-            <View style={styles.errorDetailsContainer}>
-              <Text style={styles.errorDetailsText}>
-                Technical details: {error}
-              </Text>
-            </View>
-          )}
-          
-          <View style={styles.errorButtonContainer}>
-            <TouchableOpacity
-              style={[styles.errorScreenButton, styles.errorScreenButtonPrimary]}
-              onPress={handleRetryQuiz}
-            >
-              <Ionicons name="refresh" size={20} color="#ffffff" style={{ marginRight: 8 }} />
-              <Text style={styles.errorScreenButtonText}>Try Again</Text>
-            </TouchableOpacity>
-            
-            {communitySets.length > 0 && (
-              <TouchableOpacity
-                style={[styles.errorScreenButton, styles.errorScreenButtonSecondary]}
-                onPress={handleShowCommunityRescue}
-              >
-                <Ionicons name="layers" size={20} color="#059669" style={{ marginRight: 8 }} />
-                <Text style={[styles.errorScreenButtonText, styles.errorScreenButtonTextSecondary]}>Try Active Sets</Text>
-              </TouchableOpacity>
-            )}
-            
-            <TouchableOpacity
-              style={[styles.errorScreenButton, styles.errorScreenButtonSecondary]}
-              onPress={() => {
-                setShowErrorScreen(false);
-                setError(null);
-                router.replace('/(protected)/dashboard');
-              }}
-            >
-              <Ionicons name="home" size={20} color="#059669" style={{ marginRight: 8 }} />
-              <Text style={[styles.errorScreenButtonText, styles.errorScreenButtonTextSecondary]}>Back to Dashboard</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       {/* Title Bar */}
@@ -929,29 +404,11 @@ export default function QuizConfigPage() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.container}>
-            {/* Show error banner if there's an error (non-blocking) */}
-            {error && !showCommunityRescueModal && (
-              <View style={styles.errorBanner}>
-                <Ionicons name="alert-circle" size={20} color="#059669" />
-                <Text style={styles.errorBannerText}>{error}</Text>
-                <TouchableOpacity
-                  onPress={() => setError(null)}
-                  style={styles.errorBannerClose}
-                >
-                  <Ionicons name="close" size={18} color="#666" />
-                </TouchableOpacity>
-              </View>
-            )}
             {activeTab === 'recent' ? renderRecentView() : renderExploreView()}
           </View>
         </ScrollView>
       )}
 
-      {/* Modal */}
-      {renderModal()}
-
-      {/* Community Rescue Modal */}
-      {renderCommunityRescueModal()}
     </SafeAreaView>
   );
 }
@@ -1074,24 +531,33 @@ const styles = StyleSheet.create({
     top: 12,
     right: 12,
   },
+  emptyRecentContainer: {
+    paddingBottom: 24,
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 40,
+    paddingVertical: 24,
+    paddingHorizontal: 24,
   },
   emptyStateTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1a1a1a',
-    marginTop: 16,
     marginBottom: 8,
   },
   emptyStateText: {
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    marginBottom: 24,
+    lineHeight: 20,
+  },
+  examsSectionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 12,
+    paddingHorizontal: 0,
   },
   emptyStateButton: {
     backgroundColor: '#059669',
@@ -1330,6 +796,12 @@ const styles = StyleSheet.create({
     borderTopColor: '#e0e0e0',
     gap: 12,
   },
+  modalFooterInner: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 10,
+  },
   modalCancelButton: {
     flex: 1,
     paddingVertical: 14,
@@ -1342,6 +814,27 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 16,
     fontWeight: '600',
+  },
+  modalCancelButtonFull: {
+    width: '100%',
+  },
+  pendingModalBody: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  pendingModalIcon: {
+    marginBottom: 16,
+  },
+  pendingModalMessage: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  pendingModalButtons: {
+    width: '100%',
+    gap: 12,
   },
   modalStartButton: {
     flex: 1,
@@ -1361,6 +854,9 @@ const styles = StyleSheet.create({
   },
   modalStartButtonFull: {
     width: '100%',
+  },
+  modalStartButtonNoFlex: {
+    flex: 0,
   },
   modalStartButtonDisabled: {
     backgroundColor: '#ccc',

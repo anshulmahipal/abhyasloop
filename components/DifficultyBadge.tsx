@@ -1,7 +1,9 @@
-import { Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
 interface DifficultyBadgeProps {
   difficulty: 'easy' | 'medium' | 'hard';
+  /** Section name (e.g. Physics, Chemistry) for full mock tests; shown as "Section • Difficulty" */
+  section?: string;
 }
 
 const difficultyColors = {
@@ -10,21 +12,25 @@ const difficultyColors = {
   hard: '#dc2626',
 };
 
-export function DifficultyBadge({ difficulty }: DifficultyBadgeProps) {
+export function DifficultyBadge({ difficulty, section }: DifficultyBadgeProps) {
   return (
-    <Text style={[styles.badge, { backgroundColor: difficultyColors[difficulty] }]}>
-      {difficulty.toUpperCase()}
-    </Text>
+    <View style={styles.wrap}>
+      <Text style={[styles.badge, { backgroundColor: difficultyColors[difficulty] }]}>
+        {section ? `${section} • ${difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}` : difficulty.toUpperCase()}
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  badge: {
+  wrap: {
     alignSelf: 'flex-start',
+    marginBottom: 16,
+  },
+  badge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    marginBottom: 16,
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',

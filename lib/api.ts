@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { parseCompressedQuiz } from './quizParser';
 
 export interface GenerateQuizResponse {
   success: boolean;
@@ -96,18 +97,39 @@ export async function generateQuiz(
     if (typeof data === 'object' && 'error' in data) {
       const errorData = data as { error: string; details?: string };
       const errorMessage = errorData.details || errorData.error || 'Failed to generate quiz';
-      
+
       // Check for rate limit indicators in error message
-      const isRateLimit = errorMessage.includes('Please wait') || 
+      const isRateLimit = errorMessage.includes('Please wait') ||
                          errorMessage.includes('active quiz') ||
                          errorMessage.includes('1 minute');
-      
+
       const rateLimitError = new Error(errorMessage);
       (rateLimitError as any).isRateLimit = isRateLimit;
       throw rateLimitError;
     }
 
-    // Validate response format
+    // Decompress and parse when backend returns gzip_base64
+    if (typeof data === 'object' && data.encoding === 'gzip_base64') {
+      const parsed = parseCompressedQuiz(data);
+      if (!parsed) throw new Error('Invalid compressed quiz response');
+      if (!parsed.quizId) throw new Error('No quiz ID in compressed response');
+      if (!parsed.questions?.length) throw new Error('No questions were generated. Please try again.');
+      // Map to GenerateQuizResponse shape (add id and difficulty for UI)
+      return {
+        success: parsed.success,
+        quizId: parsed.quizId,
+        questions: parsed.questions.map((q, index) => ({
+          id: (q as any).id ?? `q-${index + 1}`,
+          question: q.question,
+          options: q.options,
+          correctIndex: q.correctIndex,
+          difficulty: ((q as any).difficulty ?? 'medium') as 'easy' | 'medium' | 'hard',
+          explanation: q.explanation,
+        })),
+      };
+    }
+
+    // Validate response format (uncompressed)
     if (!data.success || !Array.isArray(data.questions)) {
       throw new Error('Invalid response format from quiz generation service');
     }

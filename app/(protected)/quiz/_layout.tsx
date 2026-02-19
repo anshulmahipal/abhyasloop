@@ -8,6 +8,8 @@ export default function QuizLayout() {
       }}
     >
       <Stack.Screen name="config" options={{ headerShown: false }} />
+      <Stack.Screen name="configure" options={{ headerShown: false }} />
+      <Stack.Screen name="mock-test-generator" options={{ headerShown: false }} />
       <Stack.Screen name="[id]" options={{ headerShown: false }} />
     </Stack>
   );

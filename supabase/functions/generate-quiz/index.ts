@@ -13,6 +13,7 @@ declare const Deno: {
 const GEMINI_MODEL = Deno.env.get('GEMINI_MODEL') || 'gemini-flash-latest';
 
 interface RequestBody {
+  userId?: string | null;
   topic: string;
   difficulty: 'easy' | 'medium' | 'hard';
   examType?: string | null;
@@ -21,12 +22,16 @@ interface RequestBody {
   questionCount?: number;
 }
 
+const CORS_HEADERS = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+};
+
 interface Question {
   question: string;
   options: string[];
   correctIndex: number;
   difficulty: 'easy' | 'medium' | 'hard';
-  explanation: string;
 }
 
 interface DbQuestion {
@@ -35,7 +40,17 @@ interface DbQuestion {
   options: string[];
   correct_index: number;
   difficulty: 'easy' | 'medium' | 'hard';
-  explanation: string;
+  explanation?: string | null;
+}
+
+/** Industry-style 6-param shape: question, 4 options, correct_answer (0-3) */
+interface StructuredQuestion {
+  question: string;
+  option_1: string;
+  option_2: string;
+  option_3: string;
+  option_4: string;
+  correct_answer: number;
 }
 
 interface GeminiResponse {
@@ -49,41 +64,103 @@ interface GeminiResponse {
   }>;
 }
 
-const SYSTEM_PROMPT_TEMPLATE = (userFocus: string, topic: string, difficulty: string, contextRules: string, focusInstructions: string, questionCount: number = 5) => `You are an expert exam setter for ${userFocus}. Generate exactly ${questionCount} multiple-choice questions on ${topic}. Difficulty: ${difficulty}.
-${focusInstructions ? `\n${focusInstructions}\n` : ''}
-Context Rules:
+// Structured output: 6 params per question (industry-style) — no explanation
+const GEMINI_SYSTEM_INSTRUCTION = `You are a Quiz Generator. Output a JSON array of question objects. Each object has exactly 6 fields: question, option_1, option_2, option_3, option_4, correct_answer.
+correct_answer is an integer 0-3 (index of the correct option). Use plain text for math (no LaTeX). No explanations.`;
 
-${contextRules}
+/** JSON Schema for Gemini responseSchema: array of { question, option_1..4, correct_answer } */
+const QUIZ_RESPONSE_SCHEMA = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      question: { type: 'string', description: 'The question text' },
+      option_1: { type: 'string', description: 'First option' },
+      option_2: { type: 'string', description: 'Second option' },
+      option_3: { type: 'string', description: 'Third option' },
+      option_4: { type: 'string', description: 'Fourth option' },
+      correct_answer: { type: 'integer', description: 'Index of correct option, 0-3' },
+    },
+    required: ['question', 'option_1', 'option_2', 'option_3', 'option_4', 'correct_answer'],
+  },
+};
 
-Technical Requirements:
-- Each question must have exactly 4 options
-- Return ONLY valid JSON, no markdown, no code blocks
-- Use plain text for math expressions (e.g., "2x + 3y = 12" instead of LaTeX "$2x + 3y = 12$")
-- Avoid special characters that require escaping in JSON strings
-- All text must be properly escaped for JSON (use \\n for newlines, \\" for quotes)
-- Strictly follow the question pattern, difficulty, and syllabus of ${userFocus}
+/** Build user prompt for structured 6-param output. */
+const buildStructuredUserPrompt = (
+  topic: string,
+  difficulty: string,
+  questionCount: number,
+  userFocus: string,
+  contextRules: string,
+  focusInstructions: string
+): string => {
+  let prompt = `Generate exactly ${questionCount} ${difficulty} multiple-choice questions on ${topic} for ${userFocus}.`;
+  if (focusInstructions) prompt += ` ${focusInstructions}`;
+  if (contextRules) prompt += ` Context: ${contextRules}`;
+  prompt += ` Output a JSON array of objects. Each object must have: question (string), option_1, option_2, option_3, option_4 (strings), correct_answer (integer 0-3). No explanations.`;
+  return prompt;
+};
 
-JSON Format:
-{
-  "questions": [
-    {
-      "question": "Question text here",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctIndex": 0,
-      "difficulty": "easy|medium|hard",
-      "explanation": "A short, clear reason why the correct answer is right, written in Hinglish (mix of Hindi and English). Example: 'Yeh answer sahi hai kyunki Article 14 equality guarantee karta hai.'"
+/** Read response body as text, decompressing gzip if Content-Encoding is gzip. */
+async function getResponseBodyAsText(response: Response): Promise<string> {
+  const encoding = response.headers.get('Content-Encoding');
+  const buffer = await response.arrayBuffer();
+  if (encoding === 'gzip') {
+    const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream('gzip'));
+    const chunks: Uint8Array[] = [];
+    const reader = stream.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
     }
-  ]
+    const len = chunks.reduce((a, c) => a + c.length, 0);
+    const out = new Uint8Array(len);
+    let off = 0;
+    for (const c of chunks) {
+      out.set(c, off);
+      off += c.length;
+    }
+    return new TextDecoder().decode(out);
+  }
+  return new TextDecoder().decode(buffer);
 }
 
-Important:
-- correctIndex must be 0, 1, 2, or 3 (matching the options array index)
-- All questions must match the requested difficulty level
-- explanation is REQUIRED for every question and MUST be written in Hinglish (mix of Hindi and English words)
-- Hinglish means: Use Hindi words naturally mixed with English, like "Yeh concept important hai", "Iska reason yeh hai ki", "Article 14 equality provide karta hai"
-- Explanations should be concise (1-2 sentences), clear, and help users understand why the correct answer is right
-- Return ONLY the JSON object, nothing else
-- Use plain text math notation, avoid LaTeX syntax with dollar signs`;
+/** Return response with gzip-compressed JSON body and Content-Encoding: gzip header */
+async function compressedJsonResponse(payload: unknown): Promise<Response> {
+  const jsonString = JSON.stringify(payload);
+  const blob = new Blob([jsonString]);
+  const stream = blob.stream().pipeThrough(new CompressionStream('gzip'));
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      ...CORS_HEADERS,
+      'Content-Type': 'application/json',
+      'Content-Encoding': 'gzip',
+    },
+  });
+}
+
+/** Parse structured 6-param objects from Gemini (responseSchema) into Question[]. */
+function parseStructuredQuestions(raw: unknown, difficulty: 'easy' | 'medium' | 'hard'): Question[] {
+  if (!Array.isArray(raw)) throw new Error('Expected top-level array');
+  const questions: Question[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const row = raw[i] as StructuredQuestion;
+    if (!row || typeof row !== 'object') throw new Error(`Invalid question at index ${i}: expected object`);
+    const { question, option_1, option_2, option_3, option_4, correct_answer } = row;
+    const options = [String(option_1 ?? ''), String(option_2 ?? ''), String(option_3 ?? ''), String(option_4 ?? '')];
+    const idx = Number(correct_answer);
+    if (!Number.isInteger(idx) || idx < 0 || idx > 3) throw new Error(`Invalid correct_answer at ${i}: ${correct_answer}`);
+    questions.push({
+      question: String(question ?? ''),
+      options,
+      correctIndex: idx,
+      difficulty,
+    });
+  }
+  return questions;
+}
 
 serve(async (req: Request) => {
   // Handle CORS preflight
@@ -329,6 +406,55 @@ serve(async (req: Request) => {
       }
     }
 
+    // Step 2: Cache-First Check – use an existing unattempted quiz for this user to save AI cost
+    const { data: attemptedRows } = await supabase
+      .from('quiz_attempts')
+      .select('quiz_id')
+      .eq('user_id', user.id);
+    const attemptedQuizIds = (attemptedRows ?? []).map((r: { quiz_id?: string | null }) => r.quiz_id).filter(Boolean);
+
+    let poolQuery = supabase
+      .from('generated_quizzes')
+      .select('id, topic, difficulty, created_at')
+      .ilike('topic', topic.trim())
+      .eq('difficulty', normalizedDifficulty)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (attemptedQuizIds.length > 0) {
+      poolQuery = poolQuery.not('id', 'in', `(${attemptedQuizIds.map((id: string) => `"${id}"`).join(',')})`);
+    }
+    const { data: poolQuiz, error: poolError } = await poolQuery.maybeSingle();
+
+    if (!poolError && poolQuiz) {
+      console.log('Serving existing quiz from cache, ID:', poolQuiz.id);
+      const { data: questionsRows, error: qErr } = await supabase
+        .from('questions')
+        .select('id, question_text, options, correct_index, difficulty, explanation')
+        .eq('quiz_id', poolQuiz.id)
+        .order('id', { ascending: true });
+      if (!qErr && questionsRows && questionsRows.length > 0) {
+        const cachedQuestions = questionsRows.map((q: DbQuestion) => ({
+          id: q.id,
+          question: q.question_text,
+          options: q.options ?? [],
+          correctIndex: q.correct_index,
+          difficulty: q.difficulty ?? normalizedDifficulty,
+          explanation: q.explanation ?? '',
+        })); // explanation kept for backward compatibility with existing rows
+        const quizPayload = { quizId: poolQuiz.id, questions: cachedQuestions };
+        return compressedJsonResponse({
+          source: 'cache',
+          quiz: quizPayload,
+          success: true,
+          quizId: poolQuiz.id,
+          questions: cachedQuestions,
+        });
+      }
+    }
+    if (poolError) {
+      console.warn('Cache-first query failed, falling back to generation:', poolError.message);
+    }
+
     // Freshness Check: Try to get random questions user hasn't seen
     console.log('Checking for fresh questions...', { topic, difficulty: normalizedDifficulty, userId: user.id });
     let existingQuestions: DbQuestion[] = [];
@@ -385,14 +511,14 @@ serve(async (req: Request) => {
         );
       }
 
-      // Map database questions to API response format
+      // Map database questions to API response format (explanation optional for legacy rows)
       const mappedQuestions = existingQuestions.map((q) => ({
         id: q.id,
         question: q.question_text,
         options: q.options,
         correctIndex: q.correct_index,
         difficulty: q.difficulty,
-        explanation: q.explanation || '',
+        explanation: (q as DbQuestion).explanation ?? '',
       }));
 
       // Update last_quiz_generated_at
@@ -401,19 +527,14 @@ serve(async (req: Request) => {
         .update({ last_quiz_generated_at: new Date().toISOString() })
         .eq('id', user.id);
 
-      return new Response(
-        JSON.stringify({
-          quizId: quizData.id,
-          questions: mappedQuestions,
-        }),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
+      const quizPayload = { quizId: quizData.id, questions: mappedQuestions };
+      return compressedJsonResponse({
+        source: 'generated',
+        quiz: quizPayload,
+        success: true,
+        quizId: quizData.id,
+        questions: mappedQuestions,
+      });
     }
 
     // If we have fewer than required questions, generate new ones via AI
@@ -471,14 +592,19 @@ serve(async (req: Request) => {
     
     const focusInstructions = getFocusInstructions(userFocusValue);
     const contextRules = getContextRules(userFocusValue);
-    
-    // Build the prompt dynamically using the template function
-    const prompt = SYSTEM_PROMPT_TEMPLATE(userFocusValue, topic, normalizedDifficulty, contextRules, focusInstructions, questionCountValue);
-    
-    console.log('Prompt length:', prompt.length);
-    console.log('Prompt preview:', prompt.substring(0, 200));
 
-    // Call Gemini API
+    const userPrompt = buildStructuredUserPrompt(
+      topic,
+      normalizedDifficulty,
+      questionCountValue,
+      userFocusValue,
+      contextRules,
+      focusInstructions
+    );
+    console.log('Prompt length:', userPrompt.length);
+    console.log('Prompt preview:', userPrompt.substring(0, 200));
+
+    // Call Gemini API with responseSchema for 6-param structured output (question, option_1..4, correct_answer)
     const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiApiKey}`;
     console.log('Calling Gemini API...', { model: GEMINI_MODEL, url: geminiApiUrl.replace(geminiApiKey, '***') });
     let geminiResponse;
@@ -489,21 +615,21 @@ serve(async (req: Request) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Accept-Encoding': 'gzip',
           },
           body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: GEMINI_SYSTEM_INSTRUCTION }],
+            },
             contents: [
               {
-                parts: [
-                  {
-                    text: prompt,
-                  },
-                ],
+                parts: [{ text: userPrompt }],
               },
             ],
-            // Force JSON output from Flash model
             generationConfig: {
               responseMimeType: 'application/json',
-              maxOutputTokens: 4096, // Ensure enough tokens for complete JSON response
+              responseSchema: QUIZ_RESPONSE_SCHEMA,
+              maxOutputTokens: 4096,
             },
           }),
         }
@@ -526,10 +652,10 @@ serve(async (req: Request) => {
     }
 
     if (!geminiResponse.ok) {
-      let errorText;
-      let errorJson;
+      let errorText: string;
+      let errorJson: unknown;
       try {
-        errorText = await geminiResponse.text();
+        errorText = await getResponseBodyAsText(geminiResponse);
         try {
           errorJson = JSON.parse(errorText);
         } catch {
@@ -564,7 +690,8 @@ serve(async (req: Request) => {
 
     let geminiData: GeminiResponse;
     try {
-      geminiData = await geminiResponse.json();
+      const bodyText = await getResponseBodyAsText(geminiResponse);
+      geminiData = JSON.parse(bodyText) as GeminiResponse;
       console.log('Gemini response structure:', {
         hasCandidates: !!geminiData.candidates,
         candidatesLength: geminiData.candidates?.length,
@@ -583,7 +710,7 @@ serve(async (req: Request) => {
       }
     } catch (jsonError) {
       console.error('Failed to parse Gemini JSON response:', jsonError);
-      const responseText = await geminiResponse.text();
+      const responseText = await getResponseBodyAsText(geminiResponse);
       console.error('Raw response:', responseText.substring(0, 500));
       return new Response(
         JSON.stringify({
@@ -624,285 +751,52 @@ serve(async (req: Request) => {
     console.log('Received response text length:', responseText.length);
     console.log('Response text preview:', responseText.substring(0, 200));
 
-    // Parse JSON from response (handle markdown code blocks if present)
+    // Parse JSON from response (compact format: array of [Q, A, B, C, D, correctIndex, Explanation])
     let jsonText = responseText.trim();
-    
-    // Remove markdown code blocks if present
-    if (jsonText.startsWith('```json')) {
-      jsonText = jsonText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
-    } else if (jsonText.startsWith('```')) {
-      jsonText = jsonText.replace(/^```\n?/, '').replace(/\n?```$/, '');
-    }
+    if (jsonText.startsWith('```json')) jsonText = jsonText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    else if (jsonText.startsWith('```')) jsonText = jsonText.replace(/^```\n?/, '').replace(/\n?```$/, '');
 
-    // Clean JSON string: escape bad control characters
-    const cleanJsonString = (jsonStr: string): string => {
-      let cleaned = jsonStr;
-      let result = '';
-      let i = 0;
-      
-      // Process character by character to avoid breaking escape sequences
-      while (i < cleaned.length) {
-        const char = cleaned[i];
-        const code = char.charCodeAt(0);
-        
-        // If it's a backslash, check if it's part of an escape sequence
-        if (char === '\\' && i + 1 < cleaned.length) {
-          const nextChar = cleaned[i + 1];
-          // Valid escape sequences: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
-          if ('"\\/bfnrtu'.includes(nextChar)) {
-            // Keep the escape sequence as-is
-            result += char + nextChar;
-            i += 2;
-            continue;
-          }
-        }
-        
-        // Handle control characters (0x00-0x1F)
-        if (code >= 0x00 && code <= 0x1F) {
-          switch (code) {
-            case 0x08: result += '\\b'; break; // backspace
-            case 0x09: result += '\\t'; break; // tab
-            case 0x0A: result += '\\n'; break; // newline
-            case 0x0C: result += '\\f'; break; // form feed
-            case 0x0D: result += '\\r'; break; // carriage return
-            default:
-              // For other control chars, replace with space
-              result += ' ';
-          }
-        } else {
-          result += char;
-        }
-        i++;
-      }
-      
-      return result;
-    };
-
-    let parsedResponse;
+    let parsedResponse: unknown;
     try {
       parsedResponse = JSON.parse(jsonText);
     } catch (parseError) {
       console.error('JSON parse error:', parseError);
-      console.error('Response text length:', jsonText.length);
-      
-      // Extract error position if available
-      const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
-      const positionMatch = errorMessage.match(/position (\d+)/);
-      const errorPosition = positionMatch ? parseInt(positionMatch[1], 10) : null;
-      
-      if (errorPosition !== null) {
-        const start = Math.max(0, errorPosition - 100);
-        const end = Math.min(jsonText.length, errorPosition + 100);
-        console.error(`Error around position ${errorPosition}:`, jsonText.substring(start, end));
-        console.error('Character at error position:', jsonText[errorPosition]);
-        console.error('Character code:', jsonText.charCodeAt(errorPosition));
-      } else {
-        console.error('Response text (first 1000 chars):', jsonText.substring(0, 1000));
-        console.error('Response text (last 200 chars):', jsonText.substring(Math.max(0, jsonText.length - 200)));
-      }
-      
-      // Try to fix incomplete JSON (Unexpected end of JSON input)
-      if (errorMessage.includes('Unexpected end of JSON input') || errorMessage.includes('end of JSON')) {
-        try {
-          console.log('Attempting to fix incomplete JSON...');
-          let fixedJson = jsonText.trim();
-          
-          // Count braces and brackets to see what's missing
-          const openBraces = (fixedJson.match(/\{/g) || []).length;
-          const closeBraces = (fixedJson.match(/\}/g) || []).length;
-          const openBrackets = (fixedJson.match(/\[/g) || []).length;
-          const closeBrackets = (fixedJson.match(/\]/g) || []).length;
-          
-          // Remove trailing commas before closing structures
-          fixedJson = fixedJson.replace(/,\s*$/, '');
-          
-          // Check if we're in the middle of a string (simplified check)
-          // Look for unclosed strings by checking if last quote is escaped
-          let quoteCount = 0;
-          let escaped = false;
-          for (let i = 0; i < fixedJson.length; i++) {
-            if (fixedJson[i] === '\\' && !escaped) {
-              escaped = true;
-              continue;
-            }
-            if (fixedJson[i] === '"' && !escaped) {
-              quoteCount++;
-            }
-            escaped = false;
-          }
-          
-          // If odd number of quotes, close the string
-          if (quoteCount % 2 !== 0) {
-            fixedJson += '"';
-            console.log('Closed unclosed string');
-          }
-          
-          // Close arrays (most nested first)
-          for (let i = 0; i < openBrackets - closeBrackets; i++) {
-            fixedJson += ']';
-          }
-          
-          // Close objects (most nested first)
-          for (let i = 0; i < openBraces - closeBraces; i++) {
-            fixedJson += '}';
-          }
-          
-          console.log(`Fixed JSON: added ${openBrackets - closeBrackets} closing brackets, ${openBraces - closeBraces} closing braces`);
-          parsedResponse = JSON.parse(fixedJson);
-          console.log('Successfully fixed incomplete JSON');
-        } catch (fixError) {
-          console.error('Failed to fix incomplete JSON:', fixError);
-          // Log the original JSON for debugging
-          console.error('Original JSON preview (last 200 chars):', jsonText.substring(Math.max(0, jsonText.length - 200)));
-        }
-      }
-      
-      // Try to fix control character issues
-      if (!parsedResponse && (errorMessage.includes('Bad control character') || errorMessage.includes('control character'))) {
-        try {
-          console.log('Attempting to clean JSON string of control characters...');
-          const cleanedJsonText = cleanJsonString(jsonText);
-          parsedResponse = JSON.parse(cleanedJsonText);
-          console.log('Successfully fixed JSON control character issues');
-        } catch (fixError) {
-          console.error('Failed to fix JSON control characters:', fixError);
-        }
-      }
-      
-      // Try to fix common escape issues
-      if (!parsedResponse && errorMessage.includes('Bad escaped character')) {
-        // Try fixing unescaped backslashes before certain characters
-        let fixedJson = jsonText;
-        try {
-          // Replace unescaped backslashes before non-escape characters
-          fixedJson = jsonText.replace(/\\(?!["\\/bfnrtu])/g, '\\\\');
-          parsedResponse = JSON.parse(fixedJson);
-          console.log('Successfully fixed JSON escape issues');
-        } catch (fixError) {
-          console.error('Failed to fix JSON escapes:', fixError);
-        }
-      }
-      
-      // If still not parsed, return error
-      if (!parsedResponse) {
-        // Check if JSON appears incomplete
-        const openBraces = (jsonText.match(/\{/g) || []).length;
-        const closeBraces = (jsonText.match(/\}/g) || []).length;
-        const openBrackets = (jsonText.match(/\[/g) || []).length;
-        const closeBrackets = (jsonText.match(/\]/g) || []).length;
-        
-        const isIncomplete = openBraces !== closeBraces || openBrackets !== closeBrackets;
-        const isEndOfInputError = errorMessage.includes('Unexpected end of JSON input') || errorMessage.includes('end of JSON');
-        
-        return new Response(
-          JSON.stringify({ 
-            error: 'Failed to parse AI response',
-            details: isEndOfInputError || isIncomplete
-              ? 'Response appears to be truncated or incomplete JSON. The AI may have hit token limits. Try reducing the number of questions or simplifying the topic.'
-              : errorMessage.includes('Bad escaped character')
-              ? 'JSON contains invalid escape sequences. This may be due to LaTeX math expressions in the content.'
-              : errorMessage.includes('Bad control character')
-              ? 'JSON contains invalid control characters. This may be due to special characters in the content.'
-              : 'Invalid JSON format received',
-            parseError: errorMessage,
-            jsonLength: jsonText.length,
-            errorPosition: errorPosition,
-            braceMismatch: openBraces !== closeBraces,
-            bracketMismatch: openBrackets !== closeBrackets,
-            isIncomplete: isIncomplete || isEndOfInputError,
-          }),
-          {
-            status: 500,
-            headers: { 
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          }
-        );
-      }
-    }
-
-    // Validate response structure
-    if (!parsedResponse.questions || !Array.isArray(parsedResponse.questions)) {
-      console.error('Invalid response structure:', parsedResponse);
       return new Response(
-        JSON.stringify({ 
-          error: 'Invalid response format from AI',
-          details: 'Expected questions array',
+        JSON.stringify({
+          error: 'Failed to parse AI response',
+          details: parseError instanceof Error ? parseError.message : 'Invalid JSON',
         }),
-        {
-          status: 500,
-          headers: { 
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
+        { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
       );
     }
 
-    // Validate questions array has items
-    if (parsedResponse.questions.length === 0) {
+    let parsedResponseQuestions: Question[];
+    try {
+      parsedResponseQuestions = parseStructuredQuestions(parsedResponse, normalizedDifficulty as 'easy' | 'medium' | 'hard');
+    } catch (parseErr) {
+      console.error('Structured parse error:', parseErr);
+      return new Response(
+        JSON.stringify({
+          error: 'Invalid response format from AI',
+          details: parseErr instanceof Error ? parseErr.message : 'Expected JSON array of objects with question, option_1..4, correct_answer',
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      );
+    }
+
+    if (parsedResponseQuestions.length === 0) {
       return new Response(
         JSON.stringify({ error: 'No questions generated' }),
-        {
-          status: 500,
-          headers: { 
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
+        { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
       );
     }
 
-    // Validate each question has required fields
-    for (let i = 0; i < parsedResponse.questions.length; i++) {
-      const q = parsedResponse.questions[i];
-      if (!q.question || !Array.isArray(q.options) || q.options.length !== 4) {
-        console.error(`Invalid question at index ${i}:`, q);
+    for (let i = 0; i < parsedResponseQuestions.length; i++) {
+      const q = parsedResponseQuestions[i];
+      if (!q.question?.trim() || (q.options?.length ?? 0) !== 4) {
         return new Response(
-          JSON.stringify({ 
-            error: `Invalid question format at index ${i}`,
-            details: 'Each question must have question text and exactly 4 options',
-          }),
-          {
-            status: 500,
-            headers: { 
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          }
-        );
-      }
-      if (typeof q.correctIndex !== 'number' || q.correctIndex < 0 || q.correctIndex > 3) {
-        console.error(`Invalid correctIndex at question ${i}:`, q.correctIndex);
-        return new Response(
-          JSON.stringify({ 
-            error: `Invalid correctIndex at question ${i}`,
-            details: 'correctIndex must be 0, 1, 2, or 3',
-          }),
-          {
-            status: 500,
-            headers: { 
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          }
-        );
-      }
-      if (!q.explanation || typeof q.explanation !== 'string' || q.explanation.trim() === '') {
-        console.error(`Missing or invalid explanation at question ${i}:`, q);
-        return new Response(
-          JSON.stringify({ 
-            error: `Missing explanation at question ${i}`,
-            details: 'Each question must have a non-empty explanation field',
-          }),
-          {
-            status: 500,
-            headers: { 
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
-          }
+          JSON.stringify({ error: `Invalid question at index ${i}: need question and 4 options` }),
+          { status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
         );
       }
     }
@@ -938,13 +832,13 @@ serve(async (req: Request) => {
     const quizId = quizData.id;
     console.log('Created quiz with ID:', quizId);
 
-    // Insert questions into questions table
-    const questionsToInsert = parsedResponse.questions.map((q: Question) => ({
+    // After decompressing Gemini response we store each question as plain text in the DB (no HTML/markdown/encoding)
+    const questionsToInsert = parsedResponseQuestions.map((q: Question) => ({
       quiz_id: quizId,
       question_text: q.question,
-      options: q.options, // JSONB array
+      options: q.options,
       correct_index: q.correctIndex,
-      explanation: q.explanation,
+      explanation: null,
       topic: topic,
       difficulty: normalizedDifficulty,
     }));
@@ -952,7 +846,7 @@ serve(async (req: Request) => {
     const { data: insertedQuestions, error: questionsError } = await supabase
       .from('questions')
       .insert(questionsToInsert)
-      .select('id, question_text, options, correct_index, explanation, difficulty');
+      .select('id, question_text, options, correct_index, difficulty');
 
     if (questionsError || !insertedQuestions) {
       console.error('Error inserting questions:', questionsError);
@@ -989,31 +883,24 @@ serve(async (req: Request) => {
       console.log('Updated last_quiz_generated_at for user:', user.id);
     }
 
-    // Map database records to frontend format
+    // Map database records to frontend format (explanation omitted for new questions)
     const questionsWithIds = insertedQuestions.map((dbQuestion: DbQuestion) => ({
       id: dbQuestion.id,
       question: dbQuestion.question_text,
       options: dbQuestion.options,
       correctIndex: dbQuestion.correct_index,
       difficulty: dbQuestion.difficulty,
-      explanation: dbQuestion.explanation,
+      explanation: (dbQuestion as { explanation?: string }).explanation ?? '',
     }));
 
-    // Return the questions with their DB IDs
-    return new Response(
-      JSON.stringify({
-        success: true,
-        quizId: quizId,
-        questions: questionsWithIds,
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
+    const quizPayload = { quizId, questions: questionsWithIds };
+    return compressedJsonResponse({
+      source: 'generated',
+      quiz: quizPayload,
+      success: true,
+      quizId,
+      questions: questionsWithIds,
+    });
   } catch (error) {
     console.error('Unexpected error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -91,4 +91,9 @@ Act as a Senior Next.js & TypeScript Developer.
 - `types/` -> TypeScript interfaces.
 - `public/` -> Static assets (Images, Fonts).
 
+## 🔧 Supabase Edge Functions – Context
+- **Trigger:** User asks about a Supabase function, or you edit files under `supabase/functions/<name>/`.
+- **Rule:** For each function, read `supabase/functions/<name>/README.md` first for full context (purpose, request/response, flow, env, errors). Do not re-explain or re-derive behavior; use the README as the source of truth.
+- **New functions:** When adding a new Edge Function, create a `README.md` in that function’s folder with the same structure (overview, request body, flow, response, env, errors).
+
 

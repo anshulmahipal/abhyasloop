@@ -33,8 +33,16 @@ interface QuizAttemptWithQuiz {
 }
 
 export default function ResultPage() {
-  // Read attemptId and timeTaken from search parameters (query params)
-  const params = useLocalSearchParams<{ attemptId?: string; timeTaken?: string }>();
+  const params = useLocalSearchParams<{
+    attemptId?: string;
+    timeTaken?: string;
+    fromMockTest?: string;
+    quizId?: string;
+    score?: string;
+    totalQuestions?: string;
+    topic?: string;
+    difficulty?: string;
+  }>();
   const router = useRouter();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
@@ -52,6 +60,26 @@ export default function ResultPage() {
 
   useEffect(() => {
     const fetchResultData = async () => {
+      if (params.fromMockTest === '1' && params.quizId && params.score != null && params.totalQuestions != null) {
+        const score = parseInt(params.score, 10);
+        const totalQuestions = parseInt(params.totalQuestions, 10);
+        const topic = params.topic ? decodeURIComponent(params.topic) : 'General';
+        const difficulty = (params.difficulty || 'medium') as 'easy' | 'medium' | 'hard';
+        const mock: QuizAttemptWithQuiz = {
+          id: params.quizId,
+          quiz_id: params.quizId,
+          user_id: '',
+          score: Number.isNaN(score) ? 0 : score,
+          total_questions: Number.isNaN(totalQuestions) ? 0 : totalQuestions,
+          completed_at: new Date().toISOString(),
+          user_answers: null,
+          generated_quizzes: { topic, difficulty, questions: [] },
+        };
+        setAttemptData(mock);
+        setIsLoading(false);
+        return;
+      }
+
       if (!params.attemptId) {
         setError('No attempt ID provided');
         setIsLoading(false);
@@ -62,7 +90,6 @@ export default function ResultPage() {
         setIsLoading(true);
         setError(null);
 
-        // Fetch quiz_attempts row by ID and join generated_quizzes to get topic, difficulty, and full question data
         const { data, error: fetchError } = await supabase
           .from('quiz_attempts')
           .select(`
@@ -108,7 +135,7 @@ export default function ResultPage() {
     };
 
     fetchResultData();
-  }, [params.attemptId]);
+  }, [params.attemptId, params.fromMockTest, params.quizId, params.score, params.totalQuestions, params.topic, params.difficulty]);
 
   // Hide tab bar when result screen is active
   useEffect(() => {
@@ -224,11 +251,10 @@ export default function ResultPage() {
       if (rpcError) {
         console.error('Error saving progress:', rpcError);
         logger.error('Failed to save progress', rpcError);
-        // Don't show error to user, just log it
-        return;
+        // Continue to quiz_history so mock test / other flows still show in Recent
       }
 
-      // Save quiz session to quiz_history
+      // Save quiz session to quiz_history (so it appears in Recent tab)
       const topic = attemptData.generated_quizzes?.topic || 'General';
       const difficulty = attemptData.generated_quizzes?.difficulty || 'medium';
       const correctCount = attemptData.score;
@@ -361,7 +387,8 @@ export default function ResultPage() {
 
   const handleReviewSolutions = () => {
     logger.userAction('Review Solutions', {}, {});
-    router.push(`/(protected)/quiz/review/${params.attemptId}`);
+    const reviewId = params.fromMockTest === '1' ? params.quizId : params.attemptId;
+    if (reviewId) router.push(`/(protected)/quiz/review/${reviewId}`);
   };
 
   if (isLoading) {

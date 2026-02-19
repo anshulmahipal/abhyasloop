@@ -16,6 +16,14 @@ export interface MockTest {
   updated_at: string;
   completed_at?: string;
   error_message?: string;
+  /** When false, user has an unfinished test for this topic (engagement gate). Default false. */
+  is_completed?: boolean;
+  /** Set for engagement-gated AI topic tests. */
+  user_id?: string | null;
+  /** Topic for engagement-gated tests. */
+  topic?: string | null;
+  /** Stored quiz payload for resume. */
+  question_data?: Record<string, unknown> | null;
 }
 
 export interface TestSection {

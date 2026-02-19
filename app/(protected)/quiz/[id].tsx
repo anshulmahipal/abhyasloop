@@ -14,6 +14,7 @@ import { Question } from '../../../types';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { saveMistakes } from '../../../lib/mistakeSync';
+import { getTestById, markTestCompleted } from '../../../services/examService';
 
 export async function generateStaticParams() {
   return [
@@ -29,6 +30,7 @@ export default function QuizPage() {
     topic?: string; 
     difficulty?: 'easy' | 'medium' | 'hard';
     examType?: string;
+    fromMockTest?: string;
   }>();
   const router = useRouter();
   const navigation = useNavigation();
@@ -57,6 +59,46 @@ export default function QuizPage() {
   const userInfo = {
     id: params.id || 'unknown',
     name: 'Quiz User',
+  };
+
+  const fromMockTest = params.fromMockTest === '1';
+
+  const mapToQuestions = (raw: unknown[]): Question[] =>
+    (raw || []).map((q: any, index: number) => ({
+      id: q.id ?? index + 1,
+      question: String(q.question ?? ''),
+      options: Array.isArray(q.options) ? q.options : [],
+      correctIndex: typeof q.correctIndex === 'number' ? q.correctIndex : 0,
+      difficulty: (q.difficulty?.toLowerCase() || 'medium') as 'easy' | 'medium' | 'hard',
+      explanation: q.explanation || '',
+    }));
+
+  const loadResumeTest = async () => {
+    const testId = params.id;
+    if (!testId) {
+      setError('Invalid test ID');
+      setIsLoading(false);
+      return;
+    }
+    try {
+      setIsLoading(true);
+      setError(null);
+      const payload = await getTestById(testId);
+      if (!payload || !payload.questions?.length) {
+        setError('Could not load saved test.');
+        return;
+      }
+      const mapped = mapToQuestions(payload.questions);
+      setQuestions(mapped);
+      setQuizId(testId);
+      setUserAnswers(new Array(mapped.length).fill(null));
+      setStartTime(Date.now());
+    } catch (err) {
+      logger.error('Failed to load resume test', err);
+      setError(err instanceof Error ? err.message : 'Failed to load test.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const fetchQuiz = async () => {
@@ -90,29 +132,16 @@ export default function QuizPage() {
       // Map API response to Question interface format
       // Note: API returns UUID string IDs, but Question type expects number IDs
       // Using index+1 for now to match existing type, but could update type later
-      const mappedQuestions: Question[] = response.questions.map((q: any, index: number) => {
-        console.log(`Mapping question ${index}:`, q);
-        
-        // Validate question structure
+      const mappedQuestions: Question[] = mapToQuestions(response.questions);
+      for (let i = 0; i < mappedQuestions.length; i++) {
+        const q = mappedQuestions[i];
         if (!q.question || !Array.isArray(q.options) || q.options.length !== 4) {
-          console.error(`Invalid question at index ${index}:`, q);
-          throw new Error(`Invalid question format at index ${index}`);
+          throw new Error(`Invalid question format at index ${i}`);
         }
-        
         if (typeof q.correctIndex !== 'number' || q.correctIndex < 0 || q.correctIndex > 3) {
-          console.error(`Invalid correctIndex at index ${index}:`, q.correctIndex);
-          throw new Error(`Invalid correctIndex at index ${index}`);
+          throw new Error(`Invalid correctIndex at index ${i}`);
         }
-        
-        return {
-          id: q.id || (index + 1), // Preserve UUID from API, fallback to index+1 for compatibility
-          question: q.question,
-          options: q.options,
-          correctIndex: q.correctIndex,
-          difficulty: (q.difficulty?.toLowerCase() || 'medium') as 'easy' | 'medium' | 'hard',
-          explanation: q.explanation || '',
-        };
-      });
+      }
 
       console.log('Mapped questions:', mappedQuestions);
       console.log('Mapped questions count:', mappedQuestions.length);
@@ -148,8 +177,12 @@ export default function QuizPage() {
   };
 
   useEffect(() => {
-    fetchQuiz();
-  }, [topic, difficulty]);
+    if (fromMockTest && params.id) {
+      loadResumeTest();
+    } else {
+      fetchQuiz();
+    }
+  }, [topic, difficulty, fromMockTest, params.id]);
 
   /**
    * Handles quiz submission when user completes the last question.
@@ -270,9 +303,10 @@ export default function QuizPage() {
         profileUpdateData.coins = totalEarned;
       }
 
-      // Save quiz_attempts and update profiles in parallel
-      const [attemptResult, profileResult] = await Promise.all([
-        supabase
+      // quiz_attempts only applies to generated_quizzes; engagement-gated tests use mock_tests.is_completed
+      let attemptId: string | null = null;
+      if (!fromMockTest) {
+        const attemptResult = await supabase
           .from('quiz_attempts')
           .insert({
             quiz_id: quizId,
@@ -282,37 +316,34 @@ export default function QuizPage() {
             user_answers: userAnswersForDb,
           })
           .select('id')
-          .single(),
-        supabase
-          .from('profiles')
-          .update(profileUpdateData)
-          .eq('id', user.id)
-          .select('id, coins, current_streak, last_active_date')
-          .single(),
-      ]);
+          .single();
 
-      const { data: attemptData, error: insertError } = attemptResult;
+        const { data: attemptData, error: insertError } = attemptResult;
+        if (insertError) {
+          console.error('Error saving quiz attempt:', insertError);
+          logger.error('Failed to save quiz attempt', insertError);
+          Alert.alert(
+            'Error',
+            insertError.message || 'Failed to save your quiz results. Please try again.'
+          );
+          setIsSubmitting(false);
+          return;
+        }
+        if (!attemptData?.id) {
+          Alert.alert('Error', 'Failed to save your quiz results. Please try again.');
+          setIsSubmitting(false);
+          return;
+        }
+        attemptId = attemptData.id;
+      }
+
+      const profileResult = await supabase
+        .from('profiles')
+        .update(profileUpdateData)
+        .eq('id', user.id)
+        .select('id, coins, current_streak, last_active_date')
+        .single();
       const { error: profileUpdateError } = profileResult;
-
-      // Error handling: If insert fails, alert the error
-      if (insertError) {
-        console.error('Error saving quiz attempt:', insertError);
-        logger.error('Failed to save quiz attempt', insertError);
-        Alert.alert(
-          'Error',
-          insertError.message || 'Failed to save your quiz results. Please try again.'
-        );
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (!attemptData || !attemptData.id) {
-        console.error('No attempt data returned from insert');
-        logger.error('Failed to save quiz attempt: no data returned');
-        Alert.alert('Error', 'Failed to save your quiz results. Please try again.');
-        setIsSubmitting(false);
-        return;
-      }
 
       // Log profile update errors but don't block navigation
       if (profileUpdateError) {
@@ -331,13 +362,18 @@ export default function QuizPage() {
       }
 
       logger.userAction('Quiz Submitted', userInfo, {
-        attemptId: attemptData.id,
+        attemptId: attemptId ?? undefined,
         score,
         totalQuestions,
         quizId,
         coinsEarned: totalEarned,
         newStreak,
       });
+
+      // Mark engagement-gated mock_tests as completed so user can generate a new test for this topic
+      if (fromMockTest && quizId) {
+        markTestCompleted(quizId).catch((err) => console.error('markTestCompleted failed', err));
+      }
 
       // Save mistakes using robust sync utility (runs in background, doesn't block UI)
       // Identify mistakes: questions where userAnswers[index] !== question.correctIndex
@@ -372,9 +408,14 @@ export default function QuizPage() {
       const timeTakenArray = questions.map(q => q.time_taken || 0);
       
       // Navigate to result screen immediately (mistakes sync in background)
-      // Pass time_taken data as JSON string in URL params
       const timeTakenParam = encodeURIComponent(JSON.stringify(timeTakenArray));
-      router.replace(`/(protected)/result?attemptId=${attemptData.id}&timeTaken=${timeTakenParam}`);
+      if (fromMockTest) {
+        router.replace(
+          `/(protected)/result?fromMockTest=1&quizId=${quizId}&score=${score}&totalQuestions=${totalQuestions}&topic=${encodeURIComponent(topic)}&difficulty=${difficulty}&timeTaken=${timeTakenParam}`
+        );
+      } else {
+        router.replace(`/(protected)/result?attemptId=${attemptId}&timeTaken=${timeTakenParam}`);
+      }
     } catch (err) {
       logger.error('Quiz submission error', err);
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred.';
@@ -736,19 +777,34 @@ export default function QuizPage() {
 
   console.log('Rendering quiz UI with question:', currentQuestionIndex + 1, 'of', questions.length);
 
-  // Calculate progress percentage for simple progress bar
   const currentProgressPercentage = ((currentQuestionIndex + 1) / questions.length) * 100;
+  const attemptedCount = userAnswers.filter((a) => a !== null).length;
+  const sectionName = examType || topic;
+
+  // Full mock test: Physics, Chemistry, Math, GK — 10 questions each in that order
+  const MOCK_SECTIONS = ['Physics', 'Chemistry', 'Math', 'GK'];
+  const QUESTIONS_PER_MOCK_SECTION = 10;
+  const currentSection =
+    fromMockTest && questions.length > 0
+      ? MOCK_SECTIONS[Math.min(Math.floor(currentQuestionIndex / QUESTIONS_PER_MOCK_SECTION), MOCK_SECTIONS.length - 1)]
+      : undefined;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      {/* Top Layer: Header */}
+      {/* Top Layer: Header — section name, question progress, attempted */}
       <View style={styles.header}>
-        {/* Progress Bar */}
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBarFill, { width: `${currentProgressPercentage}%` }]} />
+        <View style={styles.headerProgressWrap}>
+          <View style={styles.headerMetaRow}>
+            <Text style={styles.headerSectionName} numberOfLines={1}>{sectionName}</Text>
+            <Text style={styles.headerQuestionText}>
+              Question {currentQuestionIndex + 1} of {questions.length}
+            </Text>
+            <Text style={styles.headerAttemptText}>Attempted {attemptedCount}</Text>
+          </View>
+          <View style={styles.progressBarContainer}>
+            <View style={[styles.progressBarFill, { width: `${currentProgressPercentage}%` }]} />
+          </View>
         </View>
-
-        {/* Report Button */}
         <TouchableOpacity
           onPress={handleReport}
           style={styles.reportButton}
@@ -770,7 +826,7 @@ export default function QuizPage() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
       >
         <View style={styles.questionCard}>
-          <DifficultyBadge difficulty={currentQuestion.difficulty} />
+          <DifficultyBadge difficulty={currentQuestion.difficulty} section={currentSection} />
           <Text style={[styles.questionText, isMobile && styles.questionTextMobile]}>
             {currentQuestion.question}
           </Text>
@@ -836,25 +892,50 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     zIndex: 10,
     elevation: 10,
   },
-  progressBarContainer: {
+  headerProgressWrap: {
     flex: 1,
-    height: 6,
+    marginRight: 12,
+  },
+  headerMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 8,
+  },
+  headerSectionName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  headerQuestionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  headerAttemptText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  progressBarContainer: {
+    height: 4,
     backgroundColor: '#E0E0E0',
-    borderRadius: 3,
-    marginRight: 16,
+    borderRadius: 2,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: '#059669',
-    borderRadius: 3,
+    borderRadius: 2,
   },
   reportButton: {
     padding: 8,

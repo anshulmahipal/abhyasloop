@@ -12,9 +12,9 @@ import {
   Linking,
   Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -28,33 +28,35 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleAuth = async () => {
+    setErrorMessage('');
     console.log('handleAuth called, mode:', mode);
-    console.log('Form values:', { 
-      email, 
+    console.log('Form values:', {
+      email,
       emailLength: email.length,
-      password, 
+      password,
       passwordLength: password.length,
       passwordType: typeof password,
-      fullName, 
-      mode 
+      fullName,
+      mode,
     });
-    
+
     // Validate inputs
     if (!email || !email.trim()) {
       console.log('Validation failed: email empty');
-      Alert.alert('Error', 'Please enter your email');
+      setErrorMessage('Please enter your email');
       return;
     }
 
     if (!password || password.length === 0 || !password.trim()) {
-      console.log('Validation failed: password empty', { 
-        password, 
+      console.log('Validation failed: password empty', {
+        password,
         passwordLength: password?.length,
-        passwordTrimmed: password?.trim() 
+        passwordTrimmed: password?.trim(),
       });
-      Alert.alert('Error', 'Please enter your password');
+      setErrorMessage('Please enter your password');
       return;
     }
 
@@ -62,21 +64,21 @@ export default function AuthScreen() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       console.log('Validation failed: invalid email format');
-      Alert.alert('Error', 'Please enter a valid email address');
+      setErrorMessage('Please enter a valid email address');
       return;
     }
 
     // Password length validation
     if (password.length < 6) {
       console.log('Validation failed: password too short');
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      setErrorMessage('Password must be at least 6 characters long');
       return;
     }
 
     // Full name validation for sign up
     if (mode === 'signup' && !fullName.trim()) {
       console.log('Validation failed: full name empty');
-      Alert.alert('Error', 'Please enter your full name');
+      setErrorMessage('Please enter your full name');
       return;
     }
 
@@ -92,7 +94,7 @@ export default function AuthScreen() {
         });
 
         if (error) {
-          Alert.alert('Sign In Failed', error.message);
+          setErrorMessage(error.message);
           setIsLoading(false);
           return;
         }
@@ -103,6 +105,11 @@ export default function AuthScreen() {
         }
       } else {
         // Sign up with full_name in metadata
+        // emailRedirectTo: where the verification link sends the user (must be in Supabase Auth → Redirect URLs)
+        const appUrl =
+          typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_APP_URL?.trim()
+            ? process.env.EXPO_PUBLIC_APP_URL.trim().replace(/\/$/, '')
+            : 'https://app.tyariwale.com';
         console.log('Attempting sign up...');
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
@@ -111,6 +118,7 @@ export default function AuthScreen() {
             data: {
               full_name: fullName.trim(),
             },
+            emailRedirectTo: `${appUrl}/auth`,
           },
         });
 
@@ -118,7 +126,7 @@ export default function AuthScreen() {
 
         if (error) {
           console.error('Sign up error:', error);
-          Alert.alert('Sign Up Failed', error.message);
+          setErrorMessage(error.message);
           setIsLoading(false);
           return;
         }
@@ -134,36 +142,34 @@ export default function AuthScreen() {
                 text: 'OK',
                 onPress: () => {
                   console.log('Alert dismissed, switching to sign in mode');
-                  // Switch to sign in mode after alert
                   setMode('signin');
                   setEmail(email.trim());
                   setPassword('');
                   setFullName('');
+                  setErrorMessage('');
                 },
               },
             ]
           );
         } else {
           console.error('Sign up succeeded but no user data');
-          Alert.alert('Error', 'Account creation failed. Please try again.');
+          setErrorMessage('Account creation failed. Please try again.');
+          setIsLoading(false);
         }
       }
     } catch (error) {
       console.error('Auth error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-      console.error('Error message:', errorMessage);
-      Alert.alert('Error', errorMessage);
+      const msg = error instanceof Error ? error.message : 'An unexpected error occurred';
+      setErrorMessage(msg);
       setIsLoading(false);
     }
   };
 
   const toggleMode = () => {
-    console.log('Toggle mode pressed, current mode:', mode);
     const newMode = mode === 'signin' ? 'signup' : 'signin';
-    console.log('Switching to mode:', newMode);
     setMode(newMode);
-    // Clear password when switching modes
     setPassword('');
+    setErrorMessage('');
   };
 
   const handleTermsPress = () => {
@@ -192,7 +198,7 @@ export default function AuthScreen() {
           {/* Logo + Title + Slogan */}
           <View style={styles.brandBlock}>
             <Image
-              source={require('../assets/logo.png')}
+              source={require('../../assets/logo.png')}
               style={styles.logo}
               resizeMode="contain"
               accessibilityLabel="TyariWale logo"
@@ -215,7 +221,10 @@ export default function AuthScreen() {
                   placeholder="Enter your full name"
                   placeholderTextColor="#999"
                   value={fullName}
-                  onChangeText={setFullName}
+                  onChangeText={(text) => {
+                    setFullName(text);
+                    if (errorMessage) setErrorMessage('');
+                  }}
                   autoCapitalize="words"
                   autoCorrect={false}
                   editable={!isLoading}
@@ -230,7 +239,10 @@ export default function AuthScreen() {
                 placeholder="Enter your email"
                 placeholderTextColor="#999"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (errorMessage) setErrorMessage('');
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -246,8 +258,8 @@ export default function AuthScreen() {
                 placeholderTextColor="#999"
                 value={password}
                 onChangeText={(text) => {
-                  console.log('Password onChangeText called with:', text.length, 'characters');
                   setPassword(text);
+                  if (errorMessage) setErrorMessage('');
                 }}
                 onBlur={() => {
                   console.log('Password field blurred, current value length:', password.length);
@@ -259,13 +271,20 @@ export default function AuthScreen() {
                 textContentType="password"
                 autoComplete="password"
               />
-              {/* Debug: Show password length (remove in production) */}
               {__DEV__ && password.length > 0 && (
                 <Text style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
                   {password.length} characters
                 </Text>
               )}
             </View>
+
+            {errorMessage ? (
+              <View style={{ marginBottom: 15, padding: 10, backgroundColor: '#FEF2F2', borderColor: '#FECACA', borderWidth: 1, borderRadius: 8 }}>
+                <Text style={{ color: '#DC2626', fontSize: 14, textAlign: 'center' }}>
+                  {errorMessage}
+                </Text>
+              </View>
+            ) : null}
 
             {/* Primary Action Button */}
             <TouchableOpacity
@@ -285,6 +304,24 @@ export default function AuthScreen() {
                 </Text>
               )}
             </TouchableOpacity>
+
+            {/* Forgot Password - sign in only */}
+            {mode === 'signin' && (
+              <TouchableOpacity
+                style={styles.forgotPasswordLink}
+                onPress={() => router.push('/auth/forgot-password')}
+                disabled={isLoading}
+              >
+                <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Having trouble? / Help */}
+            <Link href="/auth/help" asChild>
+              <TouchableOpacity style={styles.helpLink} disabled={isLoading}>
+                <Text style={styles.helpLinkText}>Having trouble?</Text>
+              </TouchableOpacity>
+            </Link>
 
             {/* Secondary Toggle Button */}
             <TouchableOpacity
@@ -432,6 +469,26 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  forgotPasswordLink: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: '#059669',
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
+  helpLink: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  helpLinkText: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   secondaryButton: {
     paddingVertical: 12,
