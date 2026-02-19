@@ -11,6 +11,7 @@ const navItems: { href: string; label: string; icon: keyof typeof Ionicons.glyph
   { href: '/(protected)/leaderboard', label: 'Exams', icon: 'document-text', iconOutline: 'document-text-outline' },
   { href: '/(protected)/quiz/config', label: 'Mock Tests', icon: 'clipboard', iconOutline: 'clipboard-outline' },
   { href: '/(protected)/profile', label: 'Profile', icon: 'person', iconOutline: 'person-outline' },
+  { href: '/(protected)/settings', label: 'Settings', icon: 'settings', iconOutline: 'settings-outline' },
 ];
 
 export function Sidebar() {

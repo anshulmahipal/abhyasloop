@@ -19,7 +19,7 @@ const navItems: { route: string; label: string; icon: keyof typeof Ionicons.glyp
   { route: '/(protected)/dashboard', label: 'Home', icon: 'home', iconOutline: 'home-outline' },
   { route: '/(protected)/leaderboard', label: 'Search', icon: 'search', iconOutline: 'search-outline' },
   { route: '/(protected)/profile', label: 'Profile', icon: 'person', iconOutline: 'person-outline' },
-  { route: '/(protected)/stats', label: 'Stats', icon: 'stats-chart', iconOutline: 'stats-chart-outline' },
+  { route: '/(protected)/settings', label: 'Settings', icon: 'settings', iconOutline: 'settings-outline' },
 ];
 
 export function MobileNav() {

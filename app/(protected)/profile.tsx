@@ -267,6 +267,17 @@ export default function ProfilePage() {
           </TouchableOpacity>
         </View>
 
+        {/* Stats */}
+        <TouchableOpacity
+          style={styles.settingsRow}
+          onPress={() => router.push('/(protected)/stats')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="stats-chart-outline" size={22} color="#4b5563" />
+          <Text style={styles.settingsLabel}>Stats</Text>
+          <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+        </TouchableOpacity>
+
         {/* Performance Chart Section */}
         <View style={styles.chartSection}>
           <Text style={styles.sectionTitle}>Performance Trend</Text>
@@ -416,8 +427,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    marginBottom: 32,
+    marginBottom: 16,
     gap: 10,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#ffffff',
+    marginHorizontal: 20,
+    marginBottom: 32,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  settingsLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
   },
   statCard: {
     flex: 1,
