@@ -7,6 +7,7 @@ import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { GoalSelector } from '../../components/GoalSelector';
+import { MockTestInfoCard } from '../../components/MockTestInfoCard';
 import { syncPendingMistakes } from '../../lib/mistakeSync';
 
 interface QuizAttemptWithQuiz {
@@ -601,13 +602,6 @@ export default function DashboardPage() {
 
 
 
-  const getScoreColor = (score: number, total: number) => {
-    const percentage = (score / total) * 100;
-    if (percentage > 80) return '#059669'; // Emerald
-    if (percentage < 50) return '#dc2626'; // Red
-    return '#d97706'; // Amber
-  };
-
   const handleLogout = async () => {
     console.log('Logout button pressed'); // Debug log
     
@@ -701,31 +695,20 @@ export default function DashboardPage() {
             ) : (
               <View style={styles.activityList}>
                 {attempts.map((attempt) => {
-                  const percentage = (attempt.score / attempt.total_questions) * 100;
-                  const scoreColor = getScoreColor(attempt.score, attempt.total_questions);
-                  
+                  const dateStr = new Date(attempt.completed_at).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  });
                   return (
-                    <TouchableOpacity
+                    <MockTestInfoCard
                       key={attempt.id}
-                      style={styles.activityItem}
+                      title={attempt.generated_quizzes?.topic || 'Unknown Topic'}
+                      score={attempt.score}
+                      total={attempt.total_questions}
+                      date={dateStr}
                       onPress={() => router.push(`/(protected)/quiz/review/${attempt.id}`)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.activityDot, { backgroundColor: scoreColor }]} />
-                      <View style={styles.activityContent}>
-                        <Text style={styles.activityTopic}>
-                          {attempt.generated_quizzes?.topic || 'Unknown Topic'}
-                        </Text>
-                        <Text style={styles.activityDate}>
-                          {formatDate(attempt.completed_at)}
-                        </Text>
-                      </View>
-                      <View style={[styles.scoreBadge, { backgroundColor: scoreColor }]}>
-                        <Text style={styles.scoreBadgeText}>
-                          {attempt.score}/{attempt.total_questions}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
+                    />
                   );
                 })}
               </View>
@@ -929,55 +912,8 @@ const styles = StyleSheet.create({
     fontStyle: 'normal',
   },
   activityList: {
-    gap: 10,
+    gap: 12,
     marginBottom: 32,
-  },
-  activityItem: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  activityDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityTopic: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 4,
-  },
-  activityDate: {
-    fontSize: 12,
-    color: '#999',
-  },
-  scoreBadge: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    minWidth: 50,
-    alignItems: 'center',
-  },
-  scoreBadgeText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
   },
   emptyState: {
     backgroundColor: '#ffffff',
