@@ -1,0 +1,32 @@
+---
+description: Enforces design system consistency for all React Native/Expo views.
+globs: ["**/*.tsx", "**/*.jsx"]
+priority: high
+---
+
+# UI Consistency – Design System Rules
+
+## NO INLINE STYLES / RANDOM HEX CODES
+
+You are **strictly forbidden** from hardcoding hex colors (e.g., `#FF5733`) or absolute pixel values unless explicitly told. Use semantic tokens from the theme instead.
+
+## USE THE THEME
+
+Always import colors, spacing, and typography from our central theme file (e.g., `@constants/Colors.ts` or your theme provider). Do not invent new values; reference existing theme keys.
+
+## REUSE COMPONENTS
+
+Do **not** build raw `TouchableOpacity` or `Text` elements if a custom component already exists. Always search the `components/` folder for `CustomButton`, `Card`, `ScreenWrapper`, or `Typography` components first.
+
+## LAYOUT
+
+Use `gap` inside `View` containers for spacing instead of applying `marginTop`/`marginBottom` to individual children. Prefer:
+
+```tsx
+<View style={{ flexDirection: 'column', gap: theme.spacing.md }}>
+  <ChildA />
+  <ChildB />
+</View>
+```
+
+over scattering margins on each child.
