@@ -18,6 +18,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { generateQuiz } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { getOrGenerateTest, getPendingMockTest } from '../../../services/examService';
+import { MockTestInfoCard } from '../../../components/MockTestInfoCard';
 
 interface MockTestAttempt {
   id: string;
@@ -352,26 +353,16 @@ export default function QuizConfigureScreen() {
             <Text style={styles.attemptsEmpty}>No attempts yet for this exam.</Text>
           ) : (
             attempts.map((a) => {
-              const date = new Date(a.created_at);
-              const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+              const dateStr = new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
               return (
-                <TouchableOpacity
+                <MockTestInfoCard
                   key={a.id}
-                  style={styles.attemptCard}
+                  title={examTitle}
+                  score={a.score}
+                  total={a.total_questions}
+                  date={dateStr}
                   onPress={() => router.push(`/(protected)/history/${a.id}` as any)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.attemptCardIcon}>
-                    <Ionicons name="layers" size={22} color="#059669" />
-                  </View>
-                  <View style={styles.attemptCardContent}>
-                    <Text style={styles.attemptCardTitle} numberOfLines={1}>{examTitle}</Text>
-                    <Text style={styles.attemptCardSubtitle}>
-                      {a.score}/{a.total_questions} • {dateStr}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
-                </TouchableOpacity>
+                />
               );
             })
           )}
@@ -437,6 +428,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
+    gap: 12,
   },
   attemptsSectionLabel: {
     fontSize: 13,
@@ -453,37 +445,6 @@ const styles = StyleSheet.create({
   attemptsEmpty: {
     fontSize: 14,
     color: '#94a3b8',
-  },
-  attemptCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 10,
-  },
-  attemptCardIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#dcfce7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  attemptCardContent: {
-    flex: 1,
-  },
-  attemptCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 4,
-  },
-  attemptCardSubtitle: {
-    fontSize: 13,
-    color: '#64748b',
   },
   topicRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   topicChip: {

@@ -8,6 +8,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { generateQuiz } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { useExamConfig } from '../../../hooks/useExamConfig';
+import { MockTestInfoCard } from '../../../components/MockTestInfoCard';
 
 type TabType = 'recent' | 'explore';
 
@@ -314,29 +315,15 @@ export default function QuizConfigPage() {
             day: 'numeric',
             year: 'numeric',
           });
-
           return (
-            <TouchableOpacity
+            <MockTestInfoCard
               key={item.id}
-              style={styles.recentCard}
+              title={item.topic}
+              score={item.score}
+              total={item.total_questions}
+              date={formattedDate}
               onPress={() => handleInstantPlay(item.topic, difficulty)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.recentCardIcon}>
-                <Ionicons 
-                  name={getTopicIcon(item.topic) as any} 
-                  size={24} 
-                  color="#059669" 
-                />
-              </View>
-              <View style={styles.recentCardContent}>
-                <Text style={styles.recentCardTitle}>{item.topic}</Text>
-                <Text style={styles.recentCardSubtitle}>
-                  {item.score}/{item.total_questions} • {formattedDate}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#ccc" />
-            </TouchableOpacity>
+            />
           );
         })}
       </View>
@@ -577,43 +564,6 @@ const styles = StyleSheet.create({
   },
   recentListContainer: {
     gap: 12,
-  },
-  recentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  recentCardIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFF5F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  recentCardContent: {
-    flex: 1,
-  },
-  recentCardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 4,
-  },
-  recentCardSubtitle: {
-    fontSize: 13,
-    color: '#666',
   },
   // Modal Styles
   modalOverlay: {

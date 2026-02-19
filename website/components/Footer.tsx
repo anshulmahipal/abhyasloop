@@ -57,6 +57,12 @@ export function Footer() {
               Terms of Service
             </Link>
             <Link
+              href="/about"
+              className="text-gray-600 transition-colors hover:text-gray-900"
+            >
+              About Us
+            </Link>
+            <Link
               href="/contact"
               className="text-gray-600 transition-colors hover:text-gray-900"
             >

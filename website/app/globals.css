@@ -5,6 +5,17 @@
 :root {
   --foreground: #111827;
   --background: #ffffff;
+  /* Theme tokens – use these instead of hardcoded colors */
+  --color-primary: #059669;
+  --color-primary-hover: #047857;
+  --color-text: #111827;
+  --color-text-muted: #6b7280;
+  --color-text-secondary: #374151;
+  --color-background: #ffffff;
+  --color-background-muted: #f9fafb;
+  --color-border: #e5e7eb;
+  --color-highlight-bg: #fef9c3;
+  --color-highlight-border: #fde047;
 }
 
 body {
