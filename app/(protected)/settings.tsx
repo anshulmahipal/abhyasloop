@@ -142,6 +142,11 @@ export default function SettingsPage() {
               () => router.push('/(protected)/profile/edit')
             )}
             {renderListItem(
+              'key-outline',
+              'Change password',
+              () => router.push('/(protected)/settings/change-password')
+            )}
+            {renderListItem(
               'time-outline',
               'Quiz History',
               () => router.push('/(protected)/history')

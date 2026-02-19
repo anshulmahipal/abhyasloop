@@ -24,6 +24,16 @@ export default function AuthLayout() {
           headerStyle: { backgroundColor: '#059669' },
         }}
       />
+      <Stack.Screen
+        name="set-password"
+        options={{
+          headerShown: true,
+          title: 'Set new password',
+          headerBackTitle: 'Back',
+          headerTintColor: '#fff',
+          headerStyle: { backgroundColor: '#059669' },
+        }}
+      />
     </Stack>
   );
 }

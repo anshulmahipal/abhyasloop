@@ -78,12 +78,14 @@ try {
   );
 }
 
+// On web, we must detect session in URL so email verification redirect completes sign-in
+const isWeb = Platform.OS === 'web';
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: createStorageAdapter(),
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: isWeb,
     flowType: 'pkce',
   },
   global: {

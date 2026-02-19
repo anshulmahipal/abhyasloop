@@ -139,6 +139,14 @@ export default function ProtectedLayout() {
         }}
       />
       <Tabs.Screen
+        name="settings/change-password"
+        options={{
+          href: null,
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
         name="history/index"
         options={{
           href: null,

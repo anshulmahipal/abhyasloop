@@ -9,8 +9,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Link } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { getAuthSetPasswordRedirectUrl } from '../../lib/auth-utils';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -26,12 +27,8 @@ export default function ForgotPasswordScreen() {
     }
     setMessage(null);
     setIsLoading(true);
-    const appUrl =
-      typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_APP_URL?.trim()
-        ? process.env.EXPO_PUBLIC_APP_URL.trim().replace(/\/$/, '')
-        : 'https://app.tyariwale.com';
     const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
-      redirectTo: `${appUrl}/auth`,
+      redirectTo: getAuthSetPasswordRedirectUrl(),
     });
     setIsLoading(false);
     if (error) {
@@ -87,6 +84,11 @@ export default function ForgotPasswordScreen() {
             <Text style={styles.buttonText}>Send reset link</Text>
           )}
         </TouchableOpacity>
+        <Link href="/auth/set-password?type=recovery" asChild>
+          <TouchableOpacity style={styles.codeLink} activeOpacity={0.7}>
+            <Text style={styles.codeLinkText}>Already have the 6-digit code? Enter it here</Text>
+          </TouchableOpacity>
+        </Link>
       </View>
     </KeyboardAvoidingView>
   );
@@ -153,5 +155,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  codeLink: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  codeLinkText: {
+    fontSize: 14,
+    color: '#059669',
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
 });

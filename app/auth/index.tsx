@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,22 @@ import {
 } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
 import { supabase } from '../../lib/supabase';
+import { getAuthRedirectBaseUrl } from '../../lib/auth-utils';
 
 type AuthMode = 'signin' | 'signup';
+
+/** On web, check if URL has auth callback params (e.g. after email verify or magic link). */
+function hasAuthCallbackInUrl(): boolean {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  const h = window.location.hash || '';
+  const q = window.location.search || '';
+  return (
+    /access_token|refresh_token|code=/.test(h) ||
+    /token_hash|code=/.test(q)
+  );
+}
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -29,6 +42,11 @@ export default function AuthScreen() {
   const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isCallbackHandling, setIsCallbackHandling] = useState(() => hasAuthCallbackInUrl());
+  /** After signup, user can verify via link or enter the 6-digit OTP from email. */
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
   const handleAuth = async () => {
     setErrorMessage('');
@@ -106,10 +124,6 @@ export default function AuthScreen() {
       } else {
         // Sign up with full_name in metadata
         // emailRedirectTo: where the verification link sends the user (must be in Supabase Auth → Redirect URLs)
-        const appUrl =
-          typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_APP_URL?.trim()
-            ? process.env.EXPO_PUBLIC_APP_URL.trim().replace(/\/$/, '')
-            : 'https://app.tyariwale.com';
         console.log('Attempting sign up...');
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
@@ -118,7 +132,7 @@ export default function AuthScreen() {
             data: {
               full_name: fullName.trim(),
             },
-            emailRedirectTo: `${appUrl}/auth`,
+            emailRedirectTo: getAuthRedirectBaseUrl(),
           },
         });
 
@@ -133,24 +147,12 @@ export default function AuthScreen() {
 
         if (data.user) {
           console.log('Sign up successful, user ID:', data.user.id);
-          // Show verification alert - do NOT redirect
-          Alert.alert(
-            'Verification Email Sent',
-            'Please check your inbox to activate your account.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  console.log('Alert dismissed, switching to sign in mode');
-                  setMode('signin');
-                  setEmail(email.trim());
-                  setPassword('');
-                  setFullName('');
-                  setErrorMessage('');
-                },
-              },
-            ]
-          );
+          setPendingVerificationEmail(email.trim());
+          setOtpCode('');
+          setErrorMessage('');
+          setMode('signin');
+          setPassword('');
+          setFullName('');
         } else {
           console.error('Sign up succeeded but no user data');
           setErrorMessage('Account creation failed. Please try again.');
@@ -165,11 +167,56 @@ export default function AuthScreen() {
     }
   };
 
+  // On web, when we landed with auth callback params, show loading until session is set or timeout
+  useEffect(() => {
+    if (!isCallbackHandling || Platform.OS !== 'web') return;
+    const t = setTimeout(() => setIsCallbackHandling(false), 5000);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) setIsCallbackHandling(false);
+    });
+    return () => {
+      clearTimeout(t);
+      subscription.unsubscribe();
+    };
+  }, [isCallbackHandling]);
+
+  const handleVerifyOtp = async () => {
+    const code = otpCode.trim().replace(/\s/g, '');
+    if (!code || !pendingVerificationEmail) {
+      setErrorMessage('Please enter the 6-digit code from your email.');
+      return;
+    }
+    setErrorMessage('');
+    setIsVerifyingOtp(true);
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: pendingVerificationEmail,
+      token: code,
+      type: 'signup',
+    });
+    setIsVerifyingOtp(false);
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+    if (data.session) {
+      setPendingVerificationEmail(null);
+      setOtpCode('');
+      router.replace('/(protected)/dashboard');
+    }
+  };
+
+  const dismissPendingVerification = () => {
+    setPendingVerificationEmail(null);
+    setOtpCode('');
+    setErrorMessage('');
+  };
+
   const toggleMode = () => {
     const newMode = mode === 'signin' ? 'signup' : 'signin';
     setMode(newMode);
     setPassword('');
     setErrorMessage('');
+    if (pendingVerificationEmail) dismissPendingVerification();
   };
 
   const handleTermsPress = () => {
@@ -185,6 +232,15 @@ export default function AuthScreen() {
       Alert.alert('Error', 'Unable to open browser.');
     });
   };
+
+  if (isCallbackHandling) {
+    return (
+      <View style={[styles.container, styles.callbackLoadingContainer]}>
+        <ActivityIndicator size="large" color="#059669" />
+        <Text style={styles.callbackLoadingText}>Completing sign-in…</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -210,7 +266,53 @@ export default function AuthScreen() {
             </View>
           </View>
 
-          {/* Form */}
+          {/* Pending email verification: enter OTP from email */}
+          {pendingVerificationEmail ? (
+            <View style={styles.otpBlock}>
+              <Text style={styles.otpTitle}>Verify your email</Text>
+              <Text style={styles.otpSubtitle}>
+                We sent a code to {pendingVerificationEmail}. Enter the 6-digit code below, or use the link in the email.
+              </Text>
+              <TextInput
+                style={styles.otpInput}
+                placeholder="000000"
+                placeholderTextColor="#999"
+                value={otpCode}
+                onChangeText={(t) => {
+                  setOtpCode(t.replace(/\D/g, '').slice(0, 6));
+                  if (errorMessage) setErrorMessage('');
+                }}
+                keyboardType="number-pad"
+                maxLength={6}
+                editable={!isVerifyingOtp}
+                autoFocus
+              />
+              {errorMessage ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{errorMessage}</Text>
+                </View>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.primaryButton, isVerifyingOtp && styles.buttonDisabled]}
+                onPress={handleVerifyOtp}
+                disabled={isVerifyingOtp}
+                activeOpacity={0.8}
+              >
+                {isVerifyingOtp ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Verify with code</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={dismissPendingVerification}
+                disabled={isVerifyingOtp}
+              >
+                <Text style={styles.secondaryButtonText}>Back to sign in</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
           <View style={styles.form}>
             {/* Full Name - only show in signup mode */}
             {mode === 'signup' && (
@@ -337,6 +439,7 @@ export default function AuthScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+          )}
 
           {/* Legal Compliance Footer */}
           <View style={styles.legalFooter}>
@@ -512,5 +615,58 @@ const styles = StyleSheet.create({
   legalLink: {
     color: '#059669',
     textDecorationLine: 'underline',
+  },
+  callbackLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  callbackLoadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+  },
+  otpBlock: {
+    width: '100%',
+    marginBottom: 8,
+  },
+  otpTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  otpSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  otpInput: {
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 20,
+    letterSpacing: 8,
+    color: '#1a1a1a',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  errorBox: {
+    marginBottom: 12,
+    padding: 10,
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
