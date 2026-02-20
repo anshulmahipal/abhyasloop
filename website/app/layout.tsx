@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Navbar } from "@/components/Navbar";
+import { PostHogProvider } from "@/components/PostHogProvider";
 import "./globals.css";
 
 const GA_MEASUREMENT_ID = "G-ZDM3403YPM";
@@ -53,8 +54,10 @@ export default function RootLayout({
         </Script>
       </head>
       <body className="min-h-screen bg-white font-sans text-gray-900 antialiased">
-        <Navbar />
-        {children}
+        <PostHogProvider>
+          <Navbar />
+          {children}
+        </PostHogProvider>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
