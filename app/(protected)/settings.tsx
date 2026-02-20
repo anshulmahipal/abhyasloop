@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
+import { posthog } from '../../lib/posthog';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function SettingsPage() {
       }
       
       try {
+        posthog.capture('user_logged_out', { source: 'settings' });
         await supabase.auth.signOut();
       } catch (error) {
         console.error('Error signing out:', error);
@@ -25,7 +27,7 @@ export default function SettingsPage() {
       }
       return;
     }
-    
+
     // Native platforms use Alert
     Alert.alert(
       'Log Out',
@@ -40,6 +42,7 @@ export default function SettingsPage() {
           style: 'destructive',
           onPress: async () => {
             try {
+              posthog.capture('user_logged_out', { source: 'settings' });
               await supabase.auth.signOut();
             } catch (error) {
               console.error('Error signing out:', error);

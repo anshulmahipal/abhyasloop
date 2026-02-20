@@ -8,6 +8,7 @@ import * as FileSystem from 'expo-file-system';
 import { useAuth } from '../../../contexts/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import { logger } from '../../../lib/logger';
+import { posthog } from '../../../lib/posthog';
 
 export default function EditProfilePage() {
   const { user, profile, session, refreshProfile } = useAuth();
@@ -165,6 +166,11 @@ export default function EditProfilePage() {
         name: name.trim(),
         hasAvatar: !!finalAvatarUrl,
       }, {});
+
+      // Track profile updated event
+      posthog.capture('profile_updated', {
+        has_avatar: !!finalAvatarUrl,
+      });
 
       // Show success alert
       Alert.alert('Success', 'Profile updated successfully!', [

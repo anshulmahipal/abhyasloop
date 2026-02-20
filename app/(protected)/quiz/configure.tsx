@@ -19,6 +19,7 @@ import { generateQuiz } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { getOrGenerateTest, getPendingMockTest } from '../../../services/examService';
 import { MockTestInfoCard } from '../../../components/MockTestInfoCard';
+import { posthog } from '../../../lib/posthog';
 
 interface MockTestAttempt {
   id: string;
@@ -120,6 +121,11 @@ export default function QuizConfigureScreen() {
     }
 
     if (selectedTopic === null) {
+      // Track full mock test start
+      posthog.capture('mock_test_started', {
+        exam_title: examTitle,
+        difficulty: selectedDifficulty,
+      });
       if (user) {
         const pending = await getPendingMockTest(user.id, examTitle);
         if (pending) {
@@ -162,6 +168,13 @@ export default function QuizConfigureScreen() {
           setShowPendingModal(true);
           return;
         }
+        // Track topic quiz configured and started
+        posthog.capture('quiz_configured', {
+          exam_title: examTitle,
+          topic: topicForQuiz,
+          difficulty: selectedDifficulty,
+          question_count: parseInt(questionCount, 10),
+        });
         router.push({
           pathname: '/(protected)/quiz/[id]',
           params: {
@@ -195,6 +208,14 @@ export default function QuizConfigureScreen() {
         throw new Error('Invalid response from quiz service');
       }
 
+      // Track topic quiz configured and started (unauthenticated path)
+      posthog.capture('quiz_configured', {
+        exam_title: examTitle,
+        topic: topicForQuiz,
+        difficulty: selectedDifficulty,
+        question_count: parseInt(questionCount, 10),
+      });
+
       router.push({
         pathname: '/(protected)/quiz/[id]',
         params: {
@@ -205,9 +226,23 @@ export default function QuizConfigureScreen() {
         },
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to generate quiz. Please try again.';
+      const error = err instanceof Error ? err : new Error(String(err));
+      const msg = error.message || 'Failed to generate quiz. Please try again.';
       setError(msg);
       setShowErrorScreen(true);
+      posthog.capture('$exception', {
+        $exception_list: [
+          {
+            type: error.name,
+            value: error.message,
+            stacktrace: { type: 'raw', frames: error.stack ?? '' },
+          },
+        ],
+        $exception_source: 'quiz_configure',
+        topic: topicForQuiz,
+        difficulty: selectedDifficulty,
+        exam_title: examTitle,
+      });
     } finally {
       setIsGenerating(false);
     }

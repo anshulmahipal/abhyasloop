@@ -15,6 +15,7 @@ import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { saveMistakes } from '../../../lib/mistakeSync';
 import { getTestById, markTestCompleted } from '../../../services/examService';
+import { posthog } from '../../../lib/posthog';
 
 export async function generateStaticParams() {
   return [
@@ -159,7 +160,17 @@ export default function QuizPage() {
       // Initialize startTime for the first question
       setStartTime(Date.now());
       console.log('Questions state set, count:', mappedQuestions.length);
-      logger.info('Quiz loaded successfully', { 
+
+      // Track quiz started event
+      posthog.capture('quiz_started', {
+        quiz_id: response.quizId,
+        topic,
+        difficulty,
+        question_count: mappedQuestions.length,
+        exam_type: examType || null,
+      });
+
+      logger.info('Quiz loaded successfully', {
         questionCount: mappedQuestions.length,
         quizId: response.quizId,
         topic,
@@ -167,10 +178,22 @@ export default function QuizPage() {
       });
     } catch (err) {
       logger.error('Failed to generate quiz', err);
-      const errorMessage = err instanceof Error 
-        ? err.message 
-        : 'Failed to generate quiz. Please try again.';
+      const error = err instanceof Error ? err : new Error(String(err));
+      const errorMessage = error.message || 'Failed to generate quiz. Please try again.';
       setError(errorMessage);
+      posthog.capture('$exception', {
+        $exception_list: [
+          {
+            type: error.name,
+            value: error.message,
+            stacktrace: { type: 'raw', frames: error.stack ?? '' },
+          },
+        ],
+        $exception_source: 'quiz_fetch',
+        topic,
+        difficulty,
+        quiz_id: null,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -368,6 +391,20 @@ export default function QuizPage() {
         quizId,
         coinsEarned: totalEarned,
         newStreak,
+      });
+
+      // Track quiz completed event
+      posthog.capture('quiz_completed', {
+        quiz_id: quizId,
+        score,
+        total_questions: totalQuestions,
+        percentage: Math.round((score / totalQuestions) * 100),
+        coins_earned: totalEarned,
+        streak: newStreak,
+        topic,
+        difficulty,
+        time_taken_seconds: timer,
+        from_mock_test: fromMockTest,
       });
 
       // Mark engagement-gated mock_tests as completed so user can generate a new test for this topic
@@ -575,7 +612,17 @@ export default function QuizPage() {
         {
           text: 'Quit',
           style: 'destructive',
-          onPress: () => router.back(),
+          onPress: () => {
+            // Track quiz abandoned event
+            posthog.capture('quiz_abandoned', {
+              quiz_id: quizId,
+              questions_answered: userAnswers.filter((a) => a !== null).length,
+              total_questions: questions.length,
+              topic,
+              difficulty,
+            });
+            router.back();
+          },
         },
       ],
       { cancelable: true }
@@ -651,6 +698,12 @@ export default function QuizPage() {
         Alert.alert('Error', 'Failed to submit report. Please try again.');
       } else {
         console.log('Report submitted successfully');
+        // Track question reported event
+        posthog.capture('question_reported', {
+          question_id: currentQuestion.id,
+          issue_type: type,
+          quiz_id: quizId,
+        });
         // Show alert after a brief delay to allow UI to update
         setTimeout(() => {
           Alert.alert('Thanks', 'We will review this.');

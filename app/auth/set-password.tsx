@@ -12,21 +12,12 @@ import {
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 
-/** On web, check if we were redirected from password recovery (forgot password link). */
-function isRecoveryUrl(): boolean {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
-  const q = window.location.search || '';
-  const h = window.location.hash || '';
-  return /type=recovery/.test(q) || /type=recovery/.test(h);
-}
-
 export default function SetPasswordScreen() {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [isRecovery, setIsRecovery] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   /** When no session from URL, user can verify with OTP from reset email. */
@@ -35,12 +26,6 @@ export default function SetPasswordScreen() {
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
 
   useEffect(() => {
-    const recovery = isRecoveryUrl();
-    setIsRecovery(recovery);
-    if (!recovery) {
-      setSessionChecked(true);
-      return;
-    }
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setHasSession(!!session);
@@ -52,21 +37,36 @@ export default function SetPasswordScreen() {
 
   const handleVerifyRecoveryOtp = async () => {
     const email = recoveryEmail.trim();
-    const code = recoveryOtp.trim().replace(/\s/g, '');
+    const code = recoveryOtp.trim().replace(/\s/g, '').replace(/\D/g, '');
     if (!email || !code) {
       setMessage({ type: 'error', text: 'Please enter your email and the 6-digit code.' });
       return;
     }
+    if (code.length !== 6) {
+      setMessage({ type: 'error', text: 'Please enter all 6 digits.' });
+      return;
+    }
     setMessage(null);
     setIsVerifyingOtp(true);
-    const { data, error } = await supabase.auth.verifyOtp({
+    let result = await supabase.auth.verifyOtp({
       email,
       token: code,
       type: 'recovery',
     });
+    if (result.error && /expired|invalid/.test(result.error.message.toLowerCase())) {
+      result = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: 'email',
+      });
+    }
     setIsVerifyingOtp(false);
+    const { data, error } = result;
     if (error) {
-      setMessage({ type: 'error', text: error.message });
+      setMessage({
+        type: 'error',
+        text: error.message + (error.message.toLowerCase().includes('expired') ? ' Request a new reset link from Forgot password.' : ''),
+      });
       return;
     }
     if (data.session) {
@@ -102,16 +102,6 @@ export default function SetPasswordScreen() {
     router.replace('/(protected)/dashboard');
   };
 
-  // Not a recovery redirect — send to auth
-  if (sessionChecked && !isRecovery) {
-    router.replace('/auth');
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#059669" />
-      </View>
-    );
-  }
-
   if (!sessionChecked) {
     return (
       <View style={styles.centered}>
@@ -121,8 +111,8 @@ export default function SetPasswordScreen() {
     );
   }
 
-  // Recovery flow but no session yet (e.g. user has OTP from email, didn't use link)
-  if (isRecovery && !hasSession) {
+  // No session yet — user must enter email + OTP from reset email (or will get session from link on web)
+  if (!hasSession) {
     return (
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

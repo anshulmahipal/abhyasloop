@@ -9,6 +9,7 @@ import { supabase } from '../../lib/supabase';
 import { GoalSelector } from '../../components/GoalSelector';
 import { MockTestInfoCard } from '../../components/MockTestInfoCard';
 import { syncPendingMistakes } from '../../lib/mistakeSync';
+import { posthog } from '../../lib/posthog';
 
 interface QuizAttemptWithQuiz {
   id: string;
@@ -274,6 +275,12 @@ export default function DashboardPage() {
         return;
       }
 
+      // Track focus changed event
+      posthog.capture('focus_changed', {
+        previous_focus: currentFocus,
+        new_focus: newFocus,
+      });
+
       // Toast/Alert: Show subtle message
       Alert.alert('Focus Updated', `Focus switched to ${newFocus}`, [{ text: 'OK' }]);
 
@@ -337,6 +344,12 @@ export default function DashboardPage() {
       
       // Refresh stats and activity to reflect new context
       await fetchUserActivity();
+
+      // Track goals updated event
+      posthog.capture('goals_updated', {
+        target_exams: newExams,
+        exam_count: newExams.length,
+      });
 
       Alert.alert('Success', 'Your goals have been saved!');
     } catch (err) {
@@ -501,7 +514,11 @@ export default function DashboardPage() {
     return (
       <TouchableOpacity
         style={styles.weeklyMockCard}
-        onPress={() => router.push('/(protected)/quiz/config?mode=weekly')}
+        onPress={() => {
+          // Track weekly mock clicked event
+          posthog.capture('weekly_mock_clicked');
+          router.push('/(protected)/quiz/config?mode=weekly');
+        }}
         activeOpacity={0.9}
       >
         <LinearGradient
@@ -604,16 +621,19 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     console.log('Logout button pressed'); // Debug log
-    
+
     // Web-specific confirmation
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const confirmed = window.confirm('Are you sure you want to log out?');
       if (!confirmed) {
         return;
       }
-      
+
       try {
         console.log('Signing out...'); // Debug log
+        // Track user logged out event
+        posthog.capture('user_logged_out');
+        posthog.reset();
         await supabase.auth.signOut();
         // The _layout.tsx session listener will automatically redirect to Login
       } catch (error) {
@@ -622,7 +642,7 @@ export default function DashboardPage() {
       }
       return;
     }
-    
+
     // Native platforms use Alert
     Alert.alert(
       'Log Out',
@@ -638,6 +658,9 @@ export default function DashboardPage() {
           onPress: async () => {
             try {
               console.log('Signing out...'); // Debug log
+              // Track user logged out event
+              posthog.capture('user_logged_out');
+              posthog.reset();
               await supabase.auth.signOut();
               // The _layout.tsx session listener will automatically redirect to Login
             } catch (error) {

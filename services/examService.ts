@@ -1,4 +1,8 @@
 import { supabase } from '../lib/supabase';
+import {
+  trackAIGenerationSuccess,
+  trackAIGenerationError,
+} from './analytics';
 
 export type GetOrGenerateResult =
   | { status: 'pending'; testId: string; message: string; questionData?: { questions: unknown[] } }
@@ -43,32 +47,49 @@ export async function getOrGenerateTest(
   }
 
   // Step C: No unattempted test — invoke generate-exam Edge Function
-  const { data: invokeData, error: invokeError } = await supabase.functions.invoke('generate-exam', {
-    body: { userId, topic: topic.trim(), difficulty: difficulty.toLowerCase() },
-  });
+  const startTime = performance.now();
+  const topicTrimmed = topic.trim();
+  try {
+    const { data: invokeData, error: invokeError } = await supabase.functions.invoke(
+      'generate-exam',
+      {
+        body: { userId, topic: topicTrimmed, difficulty: difficulty.toLowerCase() },
+      }
+    );
 
-  if (invokeError) {
-    console.error('examService: generate-exam failed', invokeError);
-    throw new Error(invokeError.message || 'Failed to generate test. Please try again.');
+    if (invokeError) {
+      console.error('examService: generate-exam failed', invokeError);
+      throw new Error(invokeError.message || 'Failed to generate test. Please try again.');
+    }
+
+    if (!invokeData || typeof invokeData !== 'object') {
+      throw new Error('No data returned from test generation.');
+    }
+
+    const err = (invokeData as { error?: string; details?: string }).error;
+    if (err) {
+      const details = (invokeData as { details?: string }).details;
+      throw new Error(details || err);
+    }
+
+    const id = (invokeData as { id?: string }).id;
+    const questions = (invokeData as { questions?: unknown[] }).questions;
+    if (!id || !Array.isArray(questions) || questions.length === 0) {
+      throw new Error('Invalid response from test generation.');
+    }
+
+    const durationMs = Math.round(performance.now() - startTime);
+    trackAIGenerationSuccess(topicTrimmed, durationMs);
+    return { status: 'new', testId: id, data: { questions } };
+  } catch (error) {
+    const durationMs = Math.round(performance.now() - startTime);
+    trackAIGenerationError(
+      topicTrimmed,
+      error instanceof Error ? error.message : String(error),
+      durationMs
+    );
+    throw error;
   }
-
-  if (!invokeData || typeof invokeData !== 'object') {
-    throw new Error('No data returned from test generation.');
-  }
-
-  const err = (invokeData as { error?: string; details?: string }).error;
-  if (err) {
-    const details = (invokeData as { details?: string }).details;
-    throw new Error(details || err);
-  }
-
-  const id = (invokeData as { id?: string }).id;
-  const questions = (invokeData as { questions?: unknown[] }).questions;
-  if (!id || !Array.isArray(questions) || questions.length === 0) {
-    throw new Error('Invalid response from test generation.');
-  }
-
-  return { status: 'new', testId: id, data: { questions } };
 }
 
 /**
@@ -192,32 +213,46 @@ export async function invokeGenerateExam(
   topic: string,
   difficulty: string
 ): Promise<{ id: string; questions: unknown[] }> {
-  const { data, error } = await supabase.functions.invoke('generate-exam', {
-    body: { topic: topic.trim(), difficulty: difficulty.toLowerCase() },
-  });
+  const startTime = performance.now();
+  const topicTrimmed = topic.trim();
+  try {
+    const { data, error } = await supabase.functions.invoke('generate-exam', {
+      body: { topic: topicTrimmed, difficulty: difficulty.toLowerCase() },
+    });
 
-  if (error) {
-    console.error('examService: invokeGenerateExam failed', error);
-    throw new Error(error.message || 'Failed to generate section. Please try again.');
+    if (error) {
+      console.error('examService: invokeGenerateExam failed', error);
+      throw new Error(error.message || 'Failed to generate section. Please try again.');
+    }
+
+    if (!data || typeof data !== 'object') {
+      throw new Error('No data returned from generate-exam.');
+    }
+
+    const err = (data as { error?: string; details?: string }).error;
+    if (err) {
+      const details = (data as { details?: string }).details;
+      throw new Error(details || err);
+    }
+
+    const id = (data as { id?: string }).id;
+    const questions = (data as { questions?: unknown[] }).questions;
+    if (!id || !Array.isArray(questions) || questions.length === 0) {
+      throw new Error('Invalid response from generate-exam.');
+    }
+
+    const durationMs = Math.round(performance.now() - startTime);
+    trackAIGenerationSuccess(topicTrimmed, durationMs);
+    return { id, questions };
+  } catch (error) {
+    const durationMs = Math.round(performance.now() - startTime);
+    trackAIGenerationError(
+      topicTrimmed,
+      error instanceof Error ? error.message : String(error),
+      durationMs
+    );
+    throw error;
   }
-
-  if (!data || typeof data !== 'object') {
-    throw new Error('No data returned from generate-exam.');
-  }
-
-  const err = (data as { error?: string; details?: string }).error;
-  if (err) {
-    const details = (data as { details?: string }).details;
-    throw new Error(details || err);
-  }
-
-  const id = (data as { id?: string }).id;
-  const questions = (data as { questions?: unknown[] }).questions;
-  if (!id || !Array.isArray(questions) || questions.length === 0) {
-    throw new Error('Invalid response from generate-exam.');
-  }
-
-  return { id, questions };
 }
 
 /**

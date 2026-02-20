@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { getAuthRedirectBaseUrl } from '../../lib/auth-utils';
+import { posthog } from '../../lib/posthog';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -120,6 +121,13 @@ export default function AuthScreen() {
         }
 
         if (data.user) {
+          // Track successful sign in
+          posthog.identify(data.user.id, {
+            $set: { email: data.user.email },
+          });
+          posthog.capture('user_signed_in', {
+            method: 'email_password',
+          });
           // Success - navigate to dashboard
           router.replace('/(protected)/dashboard');
         }
@@ -149,6 +157,14 @@ export default function AuthScreen() {
 
         if (data.user) {
           console.log('Sign up successful, user ID:', data.user.id);
+          // Track successful sign up
+          posthog.identify(data.user.id, {
+            $set: { email: data.user.email, full_name: fullName.trim() },
+            $set_once: { signed_up_at: new Date().toISOString() },
+          });
+          posthog.capture('user_signed_up', {
+            method: 'email_password',
+          });
           setPendingVerificationEmail(email.trim());
           setOtpCode('');
           setErrorMessage('');
@@ -219,6 +235,10 @@ export default function AuthScreen() {
       return;
     }
     if (data.session) {
+      // Track successful email verification
+      posthog.capture('email_verified', {
+        method: 'otp_code',
+      });
       setPendingVerificationEmail(null);
       setOtpCode('');
       router.replace('/(protected)/dashboard');

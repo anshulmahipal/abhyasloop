@@ -12,6 +12,7 @@ import {
 import { useRouter, Link } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { getAuthSetPasswordRedirectUrl } from '../../lib/auth-utils';
+import { posthog } from '../../lib/posthog';
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -35,6 +36,8 @@ export default function ForgotPasswordScreen() {
       setMessage({ type: 'error', text: error.message });
       return;
     }
+    // Track password reset requested event
+    posthog.capture('password_reset_requested');
     setMessage({
       type: 'success',
       text: 'If an account exists for this email, you will receive a password reset link.',

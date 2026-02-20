@@ -6,6 +6,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { SessionProvider, useSession } from '../contexts/SessionContext';
 import { AuthProvider } from '../contexts/AuthContext';
+import { PostHogProvider } from '../components/PostHogProvider';
 
 function RootLayoutNav() {
   const { session, loading } = useSession();
@@ -43,31 +44,35 @@ function RootLayoutNav() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: '#059669',
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
-      }}
-    >
-      <Stack.Screen name="index" options={{ title: 'Tyariwale', headerShown: false }} />
-      <Stack.Screen name="auth" options={{ headerShown: false }} />
-      <Stack.Screen name="(protected)" options={{ headerShown: false }} />
-    </Stack>
+    <>
+      <Stack
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: '#059669',
+          },
+          headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      >
+        <Stack.Screen name="index" options={{ title: 'Tyariwale', headerShown: false }} />
+        <Stack.Screen name="auth" options={{ headerShown: false }} />
+        <Stack.Screen name="(protected)" options={{ headerShown: false }} />
+      </Stack>
+    </>
   );
 }
 
 export default function RootLayout() {
   return (
-    <SessionProvider>
-      <AuthProvider>
-        <RootLayoutNav />
-      </AuthProvider>
-    </SessionProvider>
+    <PostHogProvider>
+      <SessionProvider>
+        <AuthProvider>
+          <RootLayoutNav />
+        </AuthProvider>
+      </SessionProvider>
+    </PostHogProvider>
   );
 }
 

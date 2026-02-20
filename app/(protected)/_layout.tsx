@@ -11,7 +11,10 @@ const MD_BREAKPOINT = 768;
 const MOBILE_NAV_PADDING = 88;
 
 export default function ProtectedLayout() {
+  // All hooks must run unconditionally (no early return before any hook) to avoid
+  // "Rendered fewer hooks than expected" when session becomes null on logout.
   const { session, loading } = useAuth();
+  const { width } = useWindowDimensions();
 
   // Sync pending mistakes on app start when user is authenticated
   useEffect(() => {
@@ -42,7 +45,6 @@ export default function ProtectedLayout() {
     );
   }
 
-  const { width } = useWindowDimensions();
   const isDesktop = width >= MD_BREAKPOINT;
 
   return (

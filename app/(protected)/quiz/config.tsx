@@ -9,6 +9,7 @@ import { generateQuiz } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
 import { useExamConfig } from '../../../hooks/useExamConfig';
 import { MockTestInfoCard } from '../../../components/MockTestInfoCard';
+import { posthog } from '../../../lib/posthog';
 
 type TabType = 'recent' | 'explore';
 
@@ -219,6 +220,12 @@ export default function QuizConfigPage() {
       });
     } catch (error) {
       console.error('Failed to start instant play:', error);
+      // Track quiz generation failed event
+      posthog.capture('quiz_generation_failed', {
+        topic,
+        difficulty,
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+      });
       Alert.alert(
         'Error',
         error instanceof Error ? error.message : 'Failed to start quiz. Please try again.'

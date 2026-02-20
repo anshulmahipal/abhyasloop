@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
+import { posthog } from '../../../lib/posthog';
 
 type Category = 'bug' | 'feature' | 'general';
 
@@ -59,6 +60,12 @@ export default function FeedbackCreatePage() {
         console.error('Error submitting feedback:', error);
         throw error;
       }
+
+      // Track feedback submitted event
+      posthog.capture('feedback_submitted', {
+        category,
+        message_length: message.trim().length,
+      });
 
       // Show success alert
       Alert.alert(

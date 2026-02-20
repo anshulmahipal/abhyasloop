@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { posthog } from '../../lib/posthog';
 
 interface LeaderboardUser {
   id: string;
@@ -91,6 +92,8 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     fetchLeaderboard();
+    // Track leaderboard viewed event
+    posthog.capture('leaderboard_viewed');
   }, []);
 
   useEffect(() => {

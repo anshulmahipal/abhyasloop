@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../../lib/supabase';
+import { posthog } from '../../../lib/posthog';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
@@ -45,6 +46,8 @@ export default function ChangePasswordScreen() {
       setMessage({ type: 'error', text: error.message });
       return;
     }
+    // Track password changed event
+    posthog.capture('password_changed');
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.alert('Password updated successfully.');
     } else {
