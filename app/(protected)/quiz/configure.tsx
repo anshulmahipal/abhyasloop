@@ -198,14 +198,14 @@ export default function QuizConfigureScreen() {
         },
       });
 
-      if (invokeError) throw new Error(invokeError.message ?? 'Failed to generate quiz');
+      if (invokeError) throw new Error(invokeError.message ?? 'Failed to generate exam');
       if (!data) throw new Error('No data returned');
       if (typeof data === 'object' && 'error' in data) {
         const err = data as { error?: string; details?: string };
-        throw new Error(err.details ?? err.error ?? 'Failed to generate quiz');
+        throw new Error(err.details ?? err.error ?? 'Failed to generate exam');
       }
       if (!data.success || !Array.isArray(data.questions) || data.questions.length === 0) {
-        throw new Error('Invalid response from quiz service');
+        throw new Error('Invalid response from exam service');
       }
 
       // Track topic quiz configured and started (unauthenticated path)
@@ -227,7 +227,7 @@ export default function QuizConfigureScreen() {
       });
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      const msg = error.message || 'Failed to generate quiz. Please try again.';
+      const msg = error.message || 'Failed to generate exam. Please try again.';
       setError(msg);
       setShowErrorScreen(true);
       posthog.capture('$exception', {

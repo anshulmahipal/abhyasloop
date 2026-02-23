@@ -73,6 +73,22 @@ export default function ProtectedLayout() {
           <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
           <Tabs.Screen name="stats" options={{ title: 'Stats' }} />
       <Tabs.Screen
+        name="goals"
+        options={{
+          href: null,
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="all-exams"
+        options={{
+          href: null,
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
         name="quiz"
         options={{
           href: null,

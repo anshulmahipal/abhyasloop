@@ -87,11 +87,11 @@ export default function HistoryDetailPage() {
           if (attemptError) {
             console.error('Error fetching quiz attempt:', attemptError);
             logger.error('Failed to fetch quiz attempt', attemptError);
-            throw new Error('Quiz not found. It may have been deleted or you may not have access to it.');
+            throw new Error('Exam not found. It may have been deleted or you may not have access to it.');
           }
 
           if (!attemptData) {
-            throw new Error('Quiz not found. It may have been deleted or you may not have access to it.');
+            throw new Error('Exam not found. It may have been deleted or you may not have access to it.');
           }
 
           // Transform quiz_attempts data to match QuizHistoryDetail format
@@ -121,14 +121,14 @@ export default function HistoryDetailPage() {
         } else {
           console.error('Error fetching quiz history detail:', historyError);
           logger.error('Failed to fetch quiz history detail', historyError);
-          throw new Error('Failed to load quiz details');
+          throw new Error('Failed to load exam details');
         }
       } else {
         data = historyData;
       }
 
       if (!data) {
-        throw new Error('Quiz not found. It may have been deleted or you may not have access to it.');
+        throw new Error('Exam not found. It may have been deleted or you may not have access to it.');
       }
 
       setHistoryItem(data as QuizHistoryDetail);
@@ -137,7 +137,7 @@ export default function HistoryDetailPage() {
       logger.error('Failed to load quiz history detail', err);
       
       // Extract error message with better handling
-      let errorMessage = 'Failed to load quiz details. Please try again.';
+      let errorMessage = 'Failed to load exam details. Please try again.';
       if (err instanceof Error) {
         errorMessage = err.message;
       } else if (typeof err === 'object' && err !== null && 'message' in err) {
@@ -180,7 +180,7 @@ export default function HistoryDetailPage() {
           >
             <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Quiz Review</Text>
+          <Text style={styles.headerTitle}>Exam Review</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
@@ -201,16 +201,16 @@ export default function HistoryDetailPage() {
           >
             <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Quiz Review</Text>
+          <Text style={styles.headerTitle}>Exam Review</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color="#059669" />
-          <Text style={styles.errorText}>⚠️ {error || 'Quiz not found'}</Text>
+          <Text style={styles.errorText}>⚠️ {error || 'Exam not found'}</Text>
           <Text style={styles.errorSubtext}>
             {error?.includes('not found') 
-              ? 'This quiz may have been deleted or you may not have access to it.'
-              : 'We couldn\'t load this quiz. Please try again.'}
+              ? 'This exam may have been deleted or you may not have access to it.'
+              : 'We couldn\'t load this exam. Please try again.'}
           </Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -246,7 +246,7 @@ export default function HistoryDetailPage() {
         >
           <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Quiz Review</Text>
+        <Text style={styles.headerTitle}>Exam Review</Text>
         <View style={styles.placeholder} />
       </View>
 

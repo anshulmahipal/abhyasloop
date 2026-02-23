@@ -326,12 +326,6 @@ export default function PasswordAuthScreen() {
               {isLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>{mode === 'signin' ? 'Sign In' : 'Sign Up'}</Text>}
             </TouchableOpacity>
 
-            {mode === 'signin' && (
-              <TouchableOpacity style={styles.forgotLink} onPress={() => router.push('/auth/forgot-password')} disabled={isLoading}>
-                <Text style={styles.forgotLinkText}>Forgot password?</Text>
-              </TouchableOpacity>
-            )}
-
             <TouchableOpacity style={styles.secondaryButton} onPress={toggleMode} disabled={isLoading}>
               <Text style={styles.secondaryButtonText}>{mode === 'signin' ? 'Create account' : 'Back to Sign In'}</Text>
             </TouchableOpacity>
@@ -403,8 +397,6 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { backgroundColor: '#ccc' },
   primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  forgotLink: { alignItems: 'center', marginBottom: 8 },
-  forgotLinkText: { fontSize: 14, color: '#059669', fontWeight: '500', textDecorationLine: 'underline' },
   secondaryButton: { paddingVertical: 12, alignItems: 'center' },
   secondaryButtonText: { color: '#059669', fontSize: 14, fontWeight: '500' },
   otpTitle: { fontSize: 18, fontWeight: '600', color: '#111827', marginBottom: 8 },

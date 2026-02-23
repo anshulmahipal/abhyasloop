@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../../contexts/AuthContext';
 import { generateQuiz } from '../../../lib/api';
 import { supabase } from '../../../lib/supabase';
@@ -11,7 +11,7 @@ import { useExamConfig } from '../../../hooks/useExamConfig';
 import { MockTestInfoCard } from '../../../components/MockTestInfoCard';
 import { posthog } from '../../../lib/posthog';
 
-type TabType = 'recent' | 'explore';
+type TabType = 'recent' | 'goals';
 
 interface RecentTopic {
   id: string;
@@ -122,12 +122,20 @@ const getTopicIcon = (topic: string): string => {
 export default function QuizConfigPage() {
   const { profile, user } = useAuth();
   const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string }>();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
   const { exams, loading } = useExamConfig();
   
-  // Tab state - will be updated based on recentQuizzes after fetch
-  const [activeTab, setActiveTab] = useState<TabType>('recent');
+  // Tab state - default to Goals when opened with ?tab=goals (e.g. from dashboard)
+  const [activeTab, setActiveTab] = useState<TabType>(() =>
+    params.tab === 'goals' ? 'goals' : 'recent'
+  );
+
+  // Sync tab when param changes (e.g. deep link with tab=goals)
+  useEffect(() => {
+    if (params.tab === 'goals') setActiveTab('goals');
+  }, [params.tab]);
   
   // Recent quizzes state
   const [recentQuizzes, setRecentQuizzes] = useState<RecentQuiz[]>([]);
@@ -191,6 +199,25 @@ export default function QuizConfigPage() {
     });
   };
 
+  const goToConfigureForGoal = (examName: string) => {
+    const item = (exams as Category[]).find(
+      (e) => ((e as any).title || (e as any).name || '').toLowerCase() === examName.toLowerCase()
+    );
+    const { id } = getExamConfigForGoal(examName);
+    if (item) {
+      handleCategoryPress(item as Category);
+    } else {
+      router.push({
+        pathname: '/(protected)/quiz/configure',
+        params: {
+          title: examName,
+          topics: JSON.stringify([examName]),
+          id: id || 'goal',
+        },
+      });
+    }
+  };
+
   const handleRecentTopicPress = (topic: RecentTopic) => {
     router.push({
       pathname: '/(protected)/quiz/configure',
@@ -228,7 +255,7 @@ export default function QuizConfigPage() {
       });
       Alert.alert(
         'Error',
-        error instanceof Error ? error.message : 'Failed to start quiz. Please try again.'
+        error instanceof Error ? error.message : 'Failed to start exam. Please try again.'
       );
     } finally {
       setIsGenerating(false);
@@ -250,15 +277,15 @@ export default function QuizConfigPage() {
         </Text>
       </TouchableOpacity>
       <TouchableOpacity
-        style={[styles.tabButton, activeTab === 'explore' && styles.tabButtonActive]}
+        style={[styles.tabButton, activeTab === 'goals' && styles.tabButtonActive]}
         onPress={() => {
-          setActiveTab('explore');
+          setActiveTab('goals');
           setError(null); // Clear error when switching tabs
         }}
         activeOpacity={0.8}
       >
-        <Text style={[styles.tabButtonText, activeTab === 'explore' && styles.tabButtonTextActive]}>
-          Explore
+        <Text style={[styles.tabButtonText, activeTab === 'goals' && styles.tabButtonTextActive]}>
+          Goals
         </Text>
       </TouchableOpacity>
     </View>
@@ -278,6 +305,87 @@ export default function QuizConfigPage() {
     </TouchableOpacity>
   );
 
+  // Match user's goal names to exam config for icon/id; avoid help icons
+  const getExamConfigForGoal = (examName: string) => {
+    const match = (exams as Category[]).find(
+      (e) =>
+        ((e as any).title || (e as any).name || '').toLowerCase() === examName.toLowerCase()
+    );
+    return match
+      ? { icon: (match as any).icon || 'flag', id: (match as any).id }
+      : { icon: 'flag', id: examName.replace(/\s+/g, '-').toLowerCase() };
+  };
+
+  const renderGoalsSection = () => {
+    const targetExams = (profile?.target_exams && profile.target_exams.length > 0)
+      ? profile.target_exams
+      : [];
+    const currentFocusExam = profile?.current_focus || null;
+    const hasGoals = targetExams.length > 0;
+
+    if (!hasGoals && !currentFocusExam) return null;
+
+    return (
+      <View style={styles.goalsSectionInRecent}>
+        <Text style={styles.goalsSectionLabel}>Your goals</Text>
+        {currentFocusExam && (
+          <View style={styles.currentFocusSection}>
+            <TouchableOpacity
+              style={styles.focusCard}
+              onPress={() => goToConfigureForGoal(currentFocusExam)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={(getExamConfigForGoal(currentFocusExam)?.icon || 'flag') as any}
+                size={28}
+                color="#059669"
+              />
+              <Text style={styles.focusCardTitle} numberOfLines={2}>
+                {currentFocusExam}
+              </Text>
+              <Ionicons name="play-circle" size={24} color="#059669" style={styles.focusPlayIcon} />
+            </TouchableOpacity>
+          </View>
+        )}
+        {hasGoals && (
+          <>
+            <View style={styles.gridWrapper}>
+              {targetExams.map((examName, index) => {
+                const { icon, id } = getExamConfigForGoal(examName);
+                const isFocus = examName === currentFocusExam;
+                return (
+                  <View key={`goal-${id}-${index}`} style={styles.gridItem}>
+                    <TouchableOpacity
+                      style={[styles.gridCard, isFocus && styles.gridCardFocus]}
+                      onPress={() => goToConfigureForGoal(examName)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name={icon as any} size={32} color="#059669" />
+                      <Text style={styles.gridCardTitle} numberOfLines={2}>
+                        {examName}
+                      </Text>
+                      {isFocus && (
+                        <Text style={styles.focusBadge}>Focus</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+            <TouchableOpacity
+              style={styles.editGoalsLink}
+              onPress={() => router.push('/(protected)/all-exams')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="pencil" size={18} color="#059669" />
+              <Text style={styles.editGoalsLinkText}>Edit goals</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+    );
+  };
+
   const renderRecentView = () => {
     if (loadingRecent) {
       return (
@@ -294,9 +402,10 @@ export default function QuizConfigPage() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateTitle}>No recent plays</Text>
             <Text style={styles.emptyStateText}>
-              Recent is empty because you haven't attempted any quiz yet. Pick an exam below to start.
+              Recent is empty because you haven't attempted any exam yet. Pick an exam below to start.
             </Text>
           </View>
+          {renderGoalsSection()}
           <Text style={styles.examsSectionLabel}>Exams</Text>
           <View style={styles.gridWrapper}>
             {categoriesToRender.map((item, index) => {
@@ -333,36 +442,92 @@ export default function QuizConfigPage() {
             />
           );
         })}
+        {renderGoalsSection()}
       </View>
     );
   };
 
-  const renderExploreView = () => {
-    // Use dynamic exams data, fallback to static CATEGORIES if exams is empty
-    // Always show something - never show empty state for Explore tab
-    const categoriesToRender = exams.length > 0 ? exams as Category[] : CATEGORIES;
-    
-    // Show loading only if we're still loading AND have no cached data
-    if (loading && categoriesToRender.length === 0) {
+  const renderGoalsView = () => {
+    const targetExams = (profile?.target_exams && profile.target_exams.length > 0)
+      ? profile.target_exams
+      : [];
+    const currentFocusExam = profile?.current_focus || null;
+    const hasGoals = targetExams.length > 0;
+
+    if (!hasGoals) {
       return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#059669" />
+        <View style={styles.emptyRecentContainer}>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateTitle}>No goals set</Text>
+            <Text style={styles.emptyStateText}>
+              Set your target exams so we can show your focus and quick-start options here.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyStateButton}
+              onPress={() => router.push('/(protected)/all-exams')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.emptyStateButtonText}>Set goals</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
-    
+
     return (
-      <View style={styles.gridWrapper}>
-        {categoriesToRender.map((item, index) => {
-          // Handle both 'title' and 'name' fields from database
-          const displayTitle = (item as any).title || (item as any).name || 'Unknown';
-          const uniqueKey = item.id || `category-${index}`;
-          return (
-            <View key={uniqueKey} style={styles.gridItem}>
-              {renderGridCard(displayTitle, item.icon as any, () => handleCategoryPress(item as Category))}
+      <View style={styles.goalsContainer}>
+        {currentFocusExam && (
+          <View style={styles.currentFocusSection}>
+            <Text style={styles.goalsSectionLabel}>Current focus</Text>
+            <TouchableOpacity
+              style={styles.focusCard}
+              onPress={() => goToConfigureForGoal(currentFocusExam)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={(getExamConfigForGoal(currentFocusExam)?.icon || 'flag') as any}
+                size={28}
+                color="#059669"
+              />
+              <Text style={styles.focusCardTitle} numberOfLines={2}>
+                {currentFocusExam}
+              </Text>
+              <Ionicons name="play-circle" size={24} color="#059669" style={styles.focusPlayIcon} />
+            </TouchableOpacity>
+          </View>
+        )}
+        <Text style={styles.goalsSectionLabel}>Your target exams</Text>
+            <View style={styles.gridWrapper}>
+              {targetExams.map((examName, index) => {
+                const { icon, id } = getExamConfigForGoal(examName);
+                const isFocus = examName === currentFocusExam;
+                return (
+                  <View key={`goal-${id}-${index}`} style={styles.gridItem}>
+                    <TouchableOpacity
+                      style={[styles.gridCard, isFocus && styles.gridCardFocus]}
+                      onPress={() => goToConfigureForGoal(examName)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name={icon as any} size={32} color="#059669" />
+                      <Text style={styles.gridCardTitle} numberOfLines={2}>
+                        {examName}
+                      </Text>
+                      {isFocus && (
+                        <Text style={styles.focusBadge}>Focus</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
             </View>
-          );
-        })}
+            <TouchableOpacity
+              style={styles.editGoalsLink}
+              onPress={() => router.push('/(protected)/all-exams')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="pencil" size={18} color="#059669" />
+          <Text style={styles.editGoalsLinkText}>Edit goals</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -378,7 +543,7 @@ export default function QuizConfigPage() {
         >
           <Ionicons name="arrow-back" size={24} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.titleBarText}>New Quiz</Text>
+        <Text style={styles.titleBarText}>New Exam</Text>
       </View>
 
       {/* Tab Switcher */}
@@ -398,7 +563,7 @@ export default function QuizConfigPage() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.container}>
-            {activeTab === 'recent' ? renderRecentView() : renderExploreView()}
+            {activeTab === 'recent' ? renderRecentView() : renderGoalsView()}
           </View>
         </ScrollView>
       )}
@@ -552,6 +717,73 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     marginBottom: 12,
     paddingHorizontal: 0,
+  },
+  goalsSectionInRecent: {
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  goalsContainer: {
+    paddingBottom: 24,
+  },
+  currentFocusSection: {
+    marginBottom: 20,
+  },
+  goalsSectionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 12,
+    paddingHorizontal: 0,
+  },
+  focusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#059669',
+    position: 'relative',
+  },
+  focusCardTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginLeft: 12,
+  },
+  focusPlayIcon: {
+    marginLeft: 8,
+  },
+  gridCardFocus: {
+    borderWidth: 2,
+    borderColor: '#059669',
+    backgroundColor: '#f0fdf4',
+  },
+  focusBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  editGoalsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
+    paddingVertical: 12,
+  },
+  editGoalsLinkText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#059669',
   },
   emptyStateButton: {
     backgroundColor: '#059669',

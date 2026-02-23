@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { GoalSelector } from '../../components/GoalSelector';
 import { MockTestInfoCard } from '../../components/MockTestInfoCard';
 import { syncPendingMistakes } from '../../lib/mistakeSync';
 import { posthog } from '../../lib/posthog';
@@ -82,7 +81,6 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUpdatingFocus, setIsUpdatingFocus] = useState(false);
-  const [isGoalModalVisible, setIsGoalModalVisible] = useState(false);
   const [quote, setQuote] = useState<string>('');
   const [author, setAuthor] = useState<string>('');
   
@@ -299,67 +297,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleGoalSave = async (newExams: string[]) => {
-    if (!user) {
-      Alert.alert('Error', 'Please sign in to save your goals.');
-      return;
-    }
-
-    try {
-      // Determine new current_focus
-      // If current_focus is NOT in the new list, switch to first item
-      const currentFocusValue = profile?.current_focus || null;
-      const newFocus = newExams.length > 0 
-        ? (newExams.includes(currentFocusValue || '') ? currentFocusValue : newExams[0])
-        : null;
-
-      // Update Supabase
-      const updateData: { target_exams: string[]; current_focus?: string | null } = {
-        target_exams: newExams,
-      };
-      
-      if (newFocus !== currentFocusValue) {
-        updateData.current_focus = newFocus;
-        // Optimistically update focus if it changed
-        setOptimisticFocus(newFocus);
-      }
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', user.id);
-
-      if (updateError) {
-        console.error('Error saving target_exams:', updateError);
-        Alert.alert('Error', 'Failed to save goals. Please try again.');
-        // Revert optimistic update on error
-        if (newFocus !== currentFocusValue) {
-          setOptimisticFocus(currentFocus);
-        }
-        return;
-      }
-
-      // Refresh profile data from AuthContext
-      await refreshProfile();
-      
-      // Refresh stats and activity to reflect new context
-      await fetchUserActivity();
-
-      // Track goals updated event
-      posthog.capture('goals_updated', {
-        target_exams: newExams,
-        exam_count: newExams.length,
-      });
-
-      Alert.alert('Success', 'Your goals have been saved!');
-    } catch (err) {
-      console.error('Failed to save goals:', err);
-      Alert.alert('Error', 'Failed to save goals. Please try again.');
-      // Revert optimistic update on error
-      setOptimisticFocus(currentFocus);
-    }
-  };
-
   // Show loading only if we don't have a user yet
   if (authLoading) {
     return (
@@ -378,7 +315,20 @@ export default function DashboardPage() {
     );
   }
 
-  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'User';
+  // Prefer full name from profile or auth metadata; fallback: format email prefix (e.g. "anshul.mahipal" → "Anshul Mahipal")
+  const rawEmailPart = user?.email?.split('@')[0] || '';
+  const formatEmailAsName = (s: string) =>
+    s
+      .replace(/[._]/g, ' ')
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ')
+      .trim() || s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  const displayName =
+    profile?.full_name?.trim() ||
+    (user?.user_metadata?.full_name as string | undefined)?.trim() ||
+    (rawEmailPart ? formatEmailAsName(rawEmailPart) : '') ||
+    'User';
   const hasTargetExams = targetExams.length > 0;
   const streak = profile?.current_streak || 0;
   const coins = profile?.coins || 0;
@@ -486,7 +436,7 @@ export default function DashboardPage() {
           )}
             <TouchableOpacity
             style={styles.editIconButton}
-            onPress={() => setIsGoalModalVisible(true)}
+            onPress={() => router.push('/(protected)/all-exams')}
             activeOpacity={0.7}
           >
             <Ionicons name="pencil" size={18} color="#059669" />
@@ -505,7 +455,7 @@ export default function DashboardPage() {
         <Text style={styles.headerGreeting}>
           {getGreeting()}, {displayName}!
         </Text>
-        <Text style={styles.headerSubtext}>Ready to learn something new?</Text>
+        <Text style={styles.headerSubtext}>Ready to ace your mock test?</Text>
       </View>
     );
   };
@@ -589,7 +539,7 @@ export default function DashboardPage() {
         <View style={styles.performanceRow}>
           <View style={styles.performanceStat}>
             <Text style={styles.performanceValue}>{stats.totalQuizzes}</Text>
-            <Text style={styles.performanceLabel}>Total Quizzes</Text>
+            <Text style={styles.performanceLabel}>Total Exams</Text>
           </View>
           <View style={styles.performanceStat}>
             <Text style={styles.performanceValue}>{stats.averageScore}%</Text>
@@ -715,8 +665,8 @@ export default function DashboardPage() {
               </View>
             ) : attempts.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>No quizzes completed yet</Text>
-                <Text style={styles.emptyStateSubtext}>Start your first quiz to see your activity here!</Text>
+                <Text style={styles.emptyStateText}>No exams completed yet</Text>
+                <Text style={styles.emptyStateSubtext}>Start your first exam to see your activity here!</Text>
               </View>
             ) : (
               <View style={styles.activityList}>
@@ -745,13 +695,6 @@ export default function DashboardPage() {
           </View>
         </ScrollView>
 
-        {/* Goal Selector Modal */}
-        <GoalSelector
-          visible={isGoalModalVisible}
-          onClose={() => setIsGoalModalVisible(false)}
-          initialSelection={targetExams}
-          onSave={handleGoalSave}
-        />
       </View>
     </SafeAreaView>
   );
