@@ -23,9 +23,11 @@ function RootLayoutNav() {
 
     // Redirect logic: never show landing inside the app — go straight to auth or dashboard
     const isSetPasswordScreen = segments[1] === 'set-password';
+    const isSetupProfileScreen = segments[1] === 'setup-profile';
+    const isSetupScreen = segments[1] === 'setup';
     if (session) {
-      // Allow staying on set-password so user can set new password after recovery OTP
-      if ((isAuth || isIndex) && !(isAuth && isSetPasswordScreen)) {
+      // Allow staying on set-password (recovery OTP), setup-profile, or setup (post-OTP first-time)
+      if ((isAuth || isIndex) && !(isAuth && isSetPasswordScreen) && !(isAuth && isSetupProfileScreen) && !(isAuth && isSetupScreen)) {
         // First-time users go to onboarding; onboarding redirects to dashboard if they already have goals
         router.replace('/(protected)/onboarding');
       }
