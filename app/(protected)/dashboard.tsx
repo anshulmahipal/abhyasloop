@@ -686,6 +686,9 @@ export default function DashboardPage() {
             {/* Header Section */}
             {renderHeader()}
 
+            {/* Exam Focus / Goal Selector */}
+            {renderExamFocusSwitcher()}
+
             {/* Weekly Live Mock Card */}
             {renderWeeklyMockCard()}
 

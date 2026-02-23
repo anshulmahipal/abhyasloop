@@ -22,9 +22,12 @@ function RootLayoutNav() {
     const isProtected = currentRoute === '(protected)';
 
     // Redirect logic: never show landing inside the app — go straight to auth or dashboard
+    const isSetPasswordScreen = segments[1] === 'set-password';
     if (session) {
-      if (isAuth || isIndex) {
-        router.replace('/(protected)/dashboard');
+      // Allow staying on set-password so user can set new password after recovery OTP
+      if ((isAuth || isIndex) && !(isAuth && isSetPasswordScreen)) {
+        // First-time users go to onboarding; onboarding redirects to dashboard if they already have goals
+        router.replace('/(protected)/onboarding');
       }
     } else {
       // Not signed in: from index or protected → auth (login)

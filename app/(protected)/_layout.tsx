@@ -65,6 +65,7 @@ export default function ProtectedLayout() {
             tabBarStyle: { display: 'none' },
           }}
         >
+          <Tabs.Screen name="onboarding" options={{ title: 'Onboarding', href: null }} />
           <Tabs.Screen name="dashboard" options={{ title: 'Home' }} />
           <Tabs.Screen name="leaderboard" options={{ title: 'Rankings' }} />
           <Tabs.Screen name="quiz_start" options={{ title: '' }} />
