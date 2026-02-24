@@ -93,7 +93,12 @@ export default function AuthScreen() {
       setStep('OTP_INPUT');
     } catch (err) {
       console.error('Send OTP error:', err);
-      setErrorMessage(err instanceof Error ? err.message : 'Something went wrong');
+      const msg = err instanceof Error ? err.message : 'Something went wrong';
+      setErrorMessage(
+        /failed to fetch|network request failed/i.test(msg)
+          ? 'Network error. Check your connection and try again.'
+          : msg
+      );
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +156,12 @@ export default function AuthScreen() {
       }
     } catch (err) {
       console.error('Verify OTP error:', err);
-      setErrorMessage(err instanceof Error ? err.message : 'Something went wrong');
+      const msg = err instanceof Error ? err.message : 'Something went wrong';
+      setErrorMessage(
+        /failed to fetch|network request failed/i.test(msg)
+          ? 'Network error. Check your connection and try again.'
+          : msg
+      );
     } finally {
       setIsLoading(false);
     }
