@@ -1,10 +1,5 @@
 import Link from "next/link";
 import Image from "next/image";
-import {
-  Infinity,
-  LayoutTemplate,
-  BarChart3,
-} from "lucide-react";
 import { getCategoryIcon } from "@/lib/iconMap";
 import {
   fetchLandingData,
@@ -17,34 +12,11 @@ import { FeaturesSection } from "@/components/FeaturesSection";
 import { StatsSection } from "@/components/StatsSection";
 import { FAQSection } from "@/components/FAQSection";
 import { CTASection } from "@/components/CTASection";
+import { PhilosophySection } from "@/components/PhilosophySection";
+import { RoadmapSection } from "@/components/RoadmapSection";
+import { AnalyticsFeature } from "@/components/AnalyticsFeature";
 
 const APP_BASE = "https://app.tyariwale.com";
-
-function getFirstTwoTopicLabels(topics: FeaturedExam["topics"]): string[] {
-  if (!Array.isArray(topics)) return [];
-  return topics.slice(0, 2).map((t) => (typeof t === "string" ? t : t?.name ?? "")).filter(Boolean);
-}
-
-const features = [
-  {
-    title: "Infinite Questions",
-    description:
-      "AI-generated questions so you never run out of practice. New content every time you start a test.",
-    icon: Infinity,
-  },
-  {
-    title: "Exam Blueprints",
-    description:
-      "Tests aligned to UPSC, SSC, and Banking exam patterns. Practice the way you'll be assessed.",
-    icon: LayoutTemplate,
-  },
-  {
-    title: "Instant Analysis",
-    description:
-      "Get detailed breakdowns of your performance, weak areas, and actionable insights right after each test.",
-    icon: BarChart3,
-  },
-];
 
 export default async function HomePage() {
   let categories: LandingCategory[] = [];
@@ -80,7 +52,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-4xl text-center">
           <Image
             src="/logo.png"
-            alt="TyariWale - India's First AI-Powered Exam Hall for UPSC, SSC and Banking"
+            alt="TyariWale - AI analytics for your exam preparation"
             width={120}
             height={120}
             priority
@@ -88,24 +60,35 @@ export default async function HomePage() {
             className="mx-auto"
           />
           <h1 className="mt-6 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
-            India&apos;s First <span className="text-emerald-600">AI-Powered</span> Exam Hall.
+            Stop guessing why your score is stuck. Let AI find your exact
+            weaknesses.
           </h1>
           <p className="mt-4 text-lg text-gray-600 sm:text-xl">
-            <span className="font-semibold text-emerald-700">
-              Built by Aspirants, For Aspirants.
-            </span>{" "}
-            The most trusted community for Government Exam preparation in India.
+            Taking mock tests isn&apos;t enough. TyariWale&apos;s AI analytics
+            engine tracks your speed, accuracy, and micro-topic performance to
+            build a personalized roadmap to clear your target exam.
           </p>
-          <div className="mt-10">
+          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <a
               href={APP_BASE}
-              className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+              className="inline-flex w-full justify-center rounded-lg bg-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 sm:w-auto"
             >
-              Start Practicing Now
+              Get Your Free AI Diagnosis
             </a>
+            <Link
+              href="#analytics"
+              className="inline-flex w-full justify-center rounded-lg border-2 border-gray-300 bg-white px-6 py-3 text-base font-semibold text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 sm:w-auto"
+            >
+              See How It Works
+            </Link>
           </div>
         </div>
       </section>
+
+      <PhilosophySection />
+      <RoadmapSection />
+
+      <AnalyticsFeature />
 
       <FeaturesSection />
       <StatsSection />
@@ -150,78 +133,6 @@ export default async function HomePage() {
                 </Link>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      {/* Featured National Exams */}
-      <section className="border-b border-gray-200 bg-gray-50 px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-            Featured National Exams
-          </h2>
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {featured_exams.map((exam) => {
-              const topicTags = getFirstTwoTopicLabels(exam.topics);
-              return (
-                <article
-                  key={exam.id}
-                  className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-lg font-bold text-emerald-600">
-                      {exam.short_name}
-                    </span>
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
-                      {exam.exam_level}
-                    </span>
-                  </div>
-                  <h3 className="mt-3 text-base font-semibold text-gray-900">
-                    {exam.title}
-                  </h3>
-                  <p className="mt-2 text-sm text-gray-600">
-                    {exam.conducting_body}
-                  </p>
-                  {topicTags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {topicTags.map((topic) => (
-                        <span
-                          key={topic}
-                          className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
-                        >
-                          {topic}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="bg-white px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <h2 className="sr-only">Features</h2>
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map(({ title, description, icon: Icon }) => (
-              <article
-                key={title}
-                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
-                  <Icon className="h-5 w-5" aria-hidden />
-                </div>
-                <h3 className="mt-4 text-lg font-semibold text-gray-900">
-                  {title}
-                </h3>
-                <p className="mt-2 text-gray-600">
-                  {description}
-                </p>
-              </article>
-            ))}
           </div>
         </div>
       </section>

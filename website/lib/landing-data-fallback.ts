@@ -20,7 +20,7 @@ export async function getLandingDataFromSupabase(): Promise<GetLandingDataRespon
         .limit(8),
       supabase
         .from("exams")
-        .select("id, title, short_name, conducting_body, topics, exam_level")
+        .select("id, title, short_name, conducting_body, topics, exam_level, slug")
         .eq("exam_level", "National")
         .eq("is_active", true)
         .limit(6),
