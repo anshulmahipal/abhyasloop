@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,6 @@ import {
   ScrollView,
   useWindowDimensions,
   Image,
-  Linking,
-  Alert,
-  Platform,
 } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,18 +19,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Step = 'EMAIL_INPUT' | 'OTP_INPUT';
 
-/** On web, check if URL has auth callback params (e.g. after email verify or magic link). */
-function hasAuthCallbackInUrl(): boolean {
-  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
-  const h = window.location.hash || '';
-  const q = window.location.search || '';
-  return (
-    /access_token|refresh_token|code=/.test(h) ||
-    /token_hash|code=/.test(q)
-  );
-}
-
-export default function AuthScreen() {
+export default function LoginScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
@@ -43,24 +29,6 @@ export default function AuthScreen() {
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [isCallbackHandling, setIsCallbackHandling] = useState(() => hasAuthCallbackInUrl());
-
-  useEffect(() => {
-    if (!isCallbackHandling || Platform.OS !== 'web') return;
-    const t = setTimeout(() => setIsCallbackHandling(false), 5000);
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        setIsCallbackHandling(false);
-        if (event === 'PASSWORD_RECOVERY') {
-          router.replace('/auth/set-password');
-        }
-      }
-    });
-    return () => {
-      clearTimeout(t);
-      subscription.unsubscribe();
-    };
-  }, [isCallbackHandling, router]);
 
   const handleSendVerificationCode = async () => {
     const trimmed = email.trim();
@@ -127,9 +95,9 @@ export default function AuthScreen() {
       });
 
       if (error) {
-        const msg = error.message.replace(/\btoken\b/gi, 'OTP');
         setErrorMessage(
-          msg + (error.message.toLowerCase().includes('expired') ? ' Request a new code.' : '')
+          error.message +
+            (error.message.toLowerCase().includes('expired') ? ' Request a new code.' : '')
         );
         setIsLoading(false);
         return;
@@ -173,29 +141,6 @@ export default function AuthScreen() {
     setErrorMessage('');
   };
 
-  const handleTermsPress = () => {
-    Linking.openURL('https://google.com').catch((err) => {
-      console.error('Failed to open Terms URL:', err);
-      Alert.alert('Error', 'Unable to open browser.');
-    });
-  };
-
-  const handlePrivacyPress = () => {
-    Linking.openURL('https://google.com').catch((err) => {
-      console.error('Failed to open Privacy URL:', err);
-      Alert.alert('Error', 'Unable to open browser.');
-    });
-  };
-
-  if (isCallbackHandling) {
-    return (
-      <View style={[styles.container, styles.callbackLoadingContainer]}>
-        <ActivityIndicator size="large" color="#059669" />
-        <Text style={styles.callbackLoadingText}>Completing sign-in…</Text>
-      </View>
-    );
-  }
-
   return (
     <ScrollView
       contentContainerStyle={[styles.scrollContent, isMobile && styles.scrollContentMobile]}
@@ -211,33 +156,33 @@ export default function AuthScreen() {
               accessibilityLabel="TyariWale logo"
             />
             <Text style={styles.title}>TyariWale</Text>
-            {step === 'EMAIL_INPUT' && (
-              <Text style={styles.headingSubtitle}>Enter your email to receive a 6-digit login code.</Text>
-            )}
+            <View style={styles.sloganRow}>
+              <Ionicons name="school-outline" size={18} color="#059669" style={styles.sloganIcon} />
+              <Text style={styles.slogan}>For the aspirants, by the aspirants</Text>
+            </View>
           </View>
 
           <View style={styles.form}>
             {step === 'EMAIL_INPUT' ? (
               <>
+                <Text style={styles.subtitle}>Sign in with a one-time code sent to your email</Text>
                 <View style={styles.inputContainer}>
-                  <View style={styles.inputWithIcon}>
-                    <Ionicons name="mail-outline" size={20} color="#9ca3af" style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Enter your email"
-                      placeholderTextColor="#999"
-                      value={email}
-                      onChangeText={(t) => {
-                        setEmail(t);
-                        if (errorMessage) setErrorMessage('');
-                      }}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      editable={!isLoading}
-                      autoFocus
-                    />
-                  </View>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor="#999"
+                    value={email}
+                    onChangeText={(t) => {
+                      setEmail(t);
+                      if (errorMessage) setErrorMessage('');
+                    }}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={!isLoading}
+                    autoFocus
+                  />
                 </View>
 
                 {errorMessage ? (
@@ -247,29 +192,23 @@ export default function AuthScreen() {
                 ) : null}
 
                 <TouchableOpacity
-                  style={[
-                    styles.primaryButton,
-                    isLoading && styles.buttonDisabled,
-                    isLoading && styles.buttonLoadingOpacity,
-                  ]}
+                  style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
                   onPress={handleSendVerificationCode}
                   disabled={isLoading}
                   activeOpacity={0.8}
                 >
                   {isLoading ? (
-                    <>
-                      <ActivityIndicator color="#ffffff" size="small" style={styles.buttonSpinner} />
-                      <Text style={styles.primaryButtonText}>Sending...</Text>
-                    </>
+                    <ActivityIndicator color="#ffffff" />
                   ) : (
-                    <Text style={styles.primaryButtonText}>Send code</Text>
+                    <Text style={styles.primaryButtonText}>Send Verification Code</Text>
                   )}
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <Text style={styles.subtitle}>Code sent to {email}</Text>
+                <Text style={styles.subtitle}>We sent a 6-digit code to {email}</Text>
                 <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Verification code</Text>
                   <TextInput
                     style={styles.otpInput}
                     placeholder="000000"
@@ -315,18 +254,9 @@ export default function AuthScreen() {
               </>
             )}
 
-          </View>
-
-          <View style={styles.legalFooter}>
-            <Text style={styles.legalText}>
-              By continuing, you agree to our{' '}
-              <Text style={styles.legalLink} onPress={handleTermsPress}>Terms</Text>
-              {' '}and{' '}
-              <Text style={styles.legalLink} onPress={handlePrivacyPress}>Privacy Policy</Text>.
-            </Text>
-            <Link href="/auth/help" asChild>
-              <TouchableOpacity style={styles.helpLink} disabled={isLoading}>
-                <Text style={styles.helpLinkText}>Having trouble?</Text>
+            <Link href="/auth" asChild>
+              <TouchableOpacity style={styles.secondaryButton} disabled={isLoading} activeOpacity={0.7}>
+                <Text style={styles.secondaryButtonText}>Back to sign in options</Text>
               </TouchableOpacity>
             </Link>
           </View>
@@ -357,17 +287,6 @@ const styles = StyleSheet.create({
   containerMobile: {
     paddingHorizontal: 16,
   },
-  callbackLoadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  callbackLoadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
@@ -380,56 +299,59 @@ const styles = StyleSheet.create({
   },
   brandBlock: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
   },
   logo: {
-    width: 72,
-    height: 72,
+    width: 88,
+    height: 88,
     marginBottom: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '700',
     color: '#059669',
     textAlign: 'center',
+    marginBottom: 8,
   },
-  headingSubtitle: {
+  sloganRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sloganIcon: {
+    marginRight: 6,
+  },
+  slogan: {
     fontSize: 14,
-    color: '#666',
+    color: '#6b7280',
+    fontStyle: 'italic',
     textAlign: 'center',
-    marginTop: 8,
-    paddingHorizontal: 8,
-    lineHeight: 20,
   },
   form: {
     width: '100%',
-    marginTop: 8,
   },
   subtitle: {
     fontSize: 14,
     color: '#6b7280',
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: 'center',
   },
   inputContainer: {
     marginBottom: 20,
   },
-  inputWithIcon: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  input: {
     backgroundColor: '#f8f9fa',
     borderWidth: 1,
     borderColor: '#e0e0e0',
     borderRadius: 8,
-  },
-  inputIcon: {
-    marginLeft: 14,
-  },
-  input: {
-    flex: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingLeft: 8,
     fontSize: 16,
     color: '#1a1a1a',
   },
@@ -459,12 +381,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   primaryButton: {
-    flexDirection: 'row',
     backgroundColor: '#059669',
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
     marginTop: 8,
     marginBottom: 16,
     shadowColor: '#059669',
@@ -477,12 +397,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
     shadowOpacity: 0,
     elevation: 0,
-  },
-  buttonLoadingOpacity: {
-    opacity: 0.9,
-  },
-  buttonSpinner: {
-    marginRight: 8,
   },
   primaryButtonText: {
     color: '#ffffff',
@@ -497,30 +411,5 @@ const styles = StyleSheet.create({
     color: '#059669',
     fontSize: 14,
     fontWeight: '500',
-  },
-  legalFooter: {
-    marginTop: 20,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-  },
-  legalText: {
-    fontSize: 11,
-    color: '#9ca3af',
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  legalLink: {
-    color: '#059669',
-    textDecorationLine: 'underline',
-  },
-  helpLink: {
-    marginTop: 10,
-    alignItems: 'center',
-  },
-  helpLinkText: {
-    fontSize: 12,
-    color: '#9ca3af',
-    fontWeight: '500',
-    textDecorationLine: 'underline',
   },
 });

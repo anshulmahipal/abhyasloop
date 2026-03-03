@@ -87,7 +87,7 @@ export default function ReviewPage() {
         if (attemptError || !attemptData) {
           console.error('Error fetching quiz attempt:', attemptError);
           logger.error('Failed to fetch quiz attempt', attemptError);
-          throw new Error('Failed to load quiz review');
+          throw new Error('Failed to load exam review');
         }
 
         // Sort questions by created_at to maintain order (if available) or by id
@@ -115,7 +115,7 @@ export default function ReviewPage() {
         logger.error('Failed to load review data', err);
         const errorMessage = err instanceof Error 
           ? err.message 
-          : 'Failed to load quiz review. Please try again.';
+          : 'Failed to load exam review. Please try again.';
         setError(errorMessage);
       } finally {
         setIsLoading(false);
@@ -249,7 +249,7 @@ export default function ReviewPage() {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading quiz review...</Text>
+        <Text style={styles.loadingText}>Loading exam review...</Text>
       </View>
     );
   }
@@ -273,7 +273,7 @@ export default function ReviewPage() {
   if (questions.length === 0) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorText}>No questions found for this quiz</Text>
+        <Text style={styles.errorText}>No questions found for this exam</Text>
         <TouchableOpacity
           style={styles.button}
           onPress={handleClose}

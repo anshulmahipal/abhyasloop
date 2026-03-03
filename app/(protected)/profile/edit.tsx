@@ -17,11 +17,19 @@ export default function EditProfilePage() {
   const [name, setName] = useState<string>('');
   const [image, setImage] = useState<string>('');
   const [uploading, setUploading] = useState<boolean>(false);
+  const [showSuccessRibbon, setShowSuccessRibbon] = useState<boolean>(false);
 
-  // Pre-fill with current user's name and avatar
+  // Auto-hide success ribbon after 3s
+  useEffect(() => {
+    if (!showSuccessRibbon) return;
+    const t = setTimeout(() => setShowSuccessRibbon(false), 3000);
+    return () => clearTimeout(t);
+  }, [showSuccessRibbon]);
+
+  // Pre-fill with current user's name and avatar (email comes from user, read-only)
   useEffect(() => {
     if (profile) {
-      setName(profile.full_name || '');
+      setName(profile.full_name ?? '');
       setImage(profile.avatar_url || '');
     }
   }, [profile]);
@@ -144,14 +152,16 @@ export default function EditProfilePage() {
         finalAvatarUrl = await uploadAvatar(image);
       }
 
-      // Update database
-      const { error: updateError } = await supabase
+      // Update database and return updated row so we have the latest full_name
+      const { data: updatedRow, error: updateError } = await supabase
         .from('profiles')
         .update({
           full_name: name.trim(),
           avatar_url: finalAvatarUrl || null,
         })
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .select('full_name, avatar_url')
+        .single();
 
       if (updateError) {
         console.error('Error updating profile:', updateError);
@@ -159,7 +169,15 @@ export default function EditProfilePage() {
         throw updateError;
       }
 
-      // Refresh profile in AuthContext
+      // Update local state immediately from DB response
+      if (updatedRow?.full_name != null) {
+        setName(updatedRow.full_name);
+      }
+      if (updatedRow?.avatar_url != null) {
+        setImage(updatedRow.avatar_url);
+      }
+
+      // Refresh profile in AuthContext so rest of app sees the update
       await refreshProfile();
 
       logger.userAction('Profile Updated', {
@@ -172,13 +190,8 @@ export default function EditProfilePage() {
         has_avatar: !!finalAvatarUrl,
       });
 
-      // Show success alert
-      Alert.alert('Success', 'Profile updated successfully!', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      // Show success ribbon (user stays on screen)
+      setShowSuccessRibbon(true);
     } catch (error) {
       console.error('Error saving profile:', error);
       logger.error('Failed to save profile', error);
@@ -211,6 +224,21 @@ export default function EditProfilePage() {
         <View style={styles.placeholder} />
       </View>
 
+      {/* Success ribbon */}
+      {showSuccessRibbon && (
+        <View style={styles.successRibbon}>
+          <Ionicons name="checkmark-circle" size={22} color="#ffffff" />
+          <Text style={styles.successRibbonText}>Profile updated successfully!</Text>
+          <TouchableOpacity
+            onPress={() => setShowSuccessRibbon(false)}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={styles.successRibbonClose}
+          >
+            <Ionicons name="close" size={22} color="#ffffff" />
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.content}>
         {/* Avatar Circle */}
         <TouchableOpacity
@@ -233,14 +261,28 @@ export default function EditProfilePage() {
           </View>
         </TouchableOpacity>
 
+        {/* Email (read-only) */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Email</Text>
+          <TextInput
+            style={[styles.input, styles.inputDisabled]}
+            value={user?.email ?? ''}
+            placeholder="Email"
+            placeholderTextColor="#999"
+            editable={false}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+
         {/* Name Input */}
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Name</Text>
+          <Text style={styles.inputLabel}>Full name</Text>
           <TextInput
             style={styles.input}
             value={name}
             onChangeText={setName}
-            placeholder="Enter your name"
+            placeholder="Enter your full name"
             placeholderTextColor="#999"
             editable={!uploading}
             autoCapitalize="words"
@@ -290,6 +332,23 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 32,
+  },
+  successRibbon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  successRibbonText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  successRibbonClose: {
+    padding: 4,
   },
   content: {
     flex: 1,
@@ -372,6 +431,10 @@ const styles = StyleSheet.create({
     color: '#1a1a1a',
     borderWidth: 1,
     borderColor: '#e0e0e0',
+  },
+  inputDisabled: {
+    backgroundColor: '#f0f0f0',
+    color: '#666',
   },
   saveButton: {
     width: '100%',

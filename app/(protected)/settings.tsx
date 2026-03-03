@@ -105,15 +105,9 @@ export default function SettingsPage() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
+      {/* Header - no back arrow; Settings is a top-level tab */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
-        </TouchableOpacity>
+        <View style={styles.placeholder} />
         <Text style={styles.headerTitle}>Settings</Text>
         <View style={styles.placeholder} />
       </View>
@@ -145,13 +139,8 @@ export default function SettingsPage() {
               () => router.push('/(protected)/profile/edit')
             )}
             {renderListItem(
-              'key-outline',
-              'Change password',
-              () => router.push('/(protected)/settings/change-password')
-            )}
-            {renderListItem(
               'time-outline',
-              'Quiz History',
+              'Exam History',
               () => router.push('/(protected)/history')
             )}
             {renderListItem(
@@ -235,9 +224,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    padding: 8,
   },
   headerTitle: {
     fontSize: 20,

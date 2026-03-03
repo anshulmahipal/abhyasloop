@@ -13,6 +13,7 @@ export type FeaturedExam = {
   conducting_body: string;
   topics: (string | { name?: string })[] | null;
   exam_level: string;
+  slug?: string;
 };
 
 export type GetLandingDataResponse = {

@@ -58,9 +58,10 @@ export async function GET(
       return NextResponse.json({ error: "Test has no questions" }, { status: 404 });
     }
 
+    const questions = payload.questions as Array<Record<string, unknown>>;
     const response: GetTestResponse = {
       ...(data.topic && { topic: data.topic as string }),
-      questions: payload.questions.map((q: Record<string, unknown>) => ({
+      questions: questions.map((q) => ({
         id: String(q.id ?? ""),
         question: String(q.question ?? ""),
         options: Array.isArray(q.options) ? q.options as string[] : [],

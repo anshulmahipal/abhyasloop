@@ -73,9 +73,9 @@ export default function HistoryPage() {
         logger.error('Failed to fetch quiz history', fetchError);
         
         // Provide more specific error messages
-        let errorMessage = 'Failed to load quiz history';
+        let errorMessage = 'Failed to load exam history';
         if (fetchError.code === 'PGRST116') {
-          errorMessage = 'No quiz history found';
+          errorMessage = 'No exam history found';
         } else if (fetchError.message?.includes('network') || fetchError.message?.includes('fetch')) {
           errorMessage = 'Network error. Please check your connection and try again.';
         } else if (fetchError.message?.includes('timeout')) {
@@ -100,7 +100,7 @@ export default function HistoryPage() {
       logger.error('Failed to load quiz history', err);
       const errorMessage = err instanceof Error
         ? err.message
-        : 'Failed to load quiz history. Please try again.';
+        : 'Failed to load exam history. Please try again.';
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -172,14 +172,14 @@ export default function HistoryPage() {
     <View style={styles.emptyState}>
       <Ionicons name="time-outline" size={60} color="#999" />
       <Text style={styles.emptyStateText}>
-        No quizzes yet. Start your streak!
+        No exams yet. Start your streak!
       </Text>
       <TouchableOpacity
         style={styles.emptyStateButton}
         onPress={() => router.push('/(protected)/quiz')}
         activeOpacity={0.7}
       >
-        <Text style={styles.emptyStateButtonText}>Take a Quiz</Text>
+        <Text style={styles.emptyStateButtonText}>Take an Exam</Text>
       </TouchableOpacity>
     </View>
   );
@@ -195,7 +195,7 @@ export default function HistoryPage() {
         >
           <Ionicons name="arrow-back" size={24} color="#1a1a1a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Quiz History</Text>
+        <Text style={styles.headerTitle}>Exam History</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -208,7 +208,7 @@ export default function HistoryPage() {
           <Ionicons name="alert-circle" size={48} color="#059669" />
           <Text style={styles.errorText}>⚠️ {error}</Text>
           <Text style={styles.errorSubtext}>
-            We couldn't load your quiz history. Please check your connection and try again.
+            We couldn't load your exam history. Please check your connection and try again.
           </Text>
           <TouchableOpacity
             style={styles.retryButton}

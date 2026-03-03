@@ -17,13 +17,13 @@ const organizationSchema = {
 };
 
 export const metadata: Metadata = {
-  title: "TyariWale | India's First AI-Powered Exam Hall",
+  title: "TyariWale | Master the exact pattern of your target exam",
   description:
-    "Unlimited practice for UPSC, SSC, and Banking. Infinite questions, exam blueprints, and instant analysis.",
+    "Accurate, AI-powered mock tests for Indian government exams. Quality over quantity—verified patterns, AI explanations, handcrafted question banks.",
   openGraph: {
-    title: "TyariWale | India's First AI-Powered Exam Hall",
+    title: "TyariWale | Master the exact pattern of your target exam",
     description:
-      "Unlimited practice for UPSC, SSC, and Banking. Infinite questions, exam blueprints, and instant analysis.",
+      "Accurate, AI-powered mock tests for Indian government exams. Quality over quantity—verified patterns, AI explanations, handcrafted question banks.",
   },
   icons: {
     icon: "/logo.png",
