@@ -1,0 +1,22 @@
+# Cloudflare Worker: Supabase reverse proxy
+# Deploy: npx wrangler deploy
+# Requires: SUPABASE_ORIGIN secret (and optionally CORS_ORIGIN)
+
+name = "supabase-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Optional: use a custom domain instead of *.workers.dev
+# routes = [
+#   { pattern = "supabase.yourdomain.com", zone_name = "yourdomain.com" }
+# ]
+
+# Secrets (set via wrangler secret put):
+# - SUPABASE_ORIGIN: https://YOUR_PROJECT_REF.supabase.co
+# - CORS_ORIGIN (optional): https://yourapp.com or * for development
+
+[build]
+command = ""
+
+[vars]
+# No vars required; SUPABASE_ORIGIN must be a secret so it's not in the repo
