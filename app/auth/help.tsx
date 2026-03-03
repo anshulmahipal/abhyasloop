@@ -1,17 +1,10 @@
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Linking, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 const HELP_CENTER_URL = 'https://tyariwale.com'; // Update to your help center when available
 const SUPPORT_EMAIL = 'mailto:support@tyariwale.com?subject=Account%20Recovery';
 
 export default function AuthHelpScreen() {
-  const router = useRouter();
-
-  const handleForgotPassword = () => {
-    router.push('/auth/forgot-password');
-  };
-
   const handleForgotEmail = () => {
     Alert.alert(
       'Forgot email address',
@@ -33,16 +26,7 @@ export default function AuthHelpScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.content}>
-        {/* Option 1: Forgot Password */}
-        <TouchableOpacity style={styles.card} onPress={handleForgotPassword} activeOpacity={0.8}>
-          <Ionicons name="key-outline" size={24} color="#059669" style={styles.cardIcon} />
-          <View style={styles.cardTextWrap}>
-            <Text style={styles.cardTitle}>Forgot password</Text>
-            <Text style={styles.cardSubtext}>Reset your password via email</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Option 2: Forgot Email */}
+        {/* Option 1: Forgot Email */}
         <TouchableOpacity style={styles.card} onPress={handleForgotEmail} activeOpacity={0.8}>
           <Ionicons name="mail-outline" size={24} color="#059669" style={styles.cardIcon} />
           <View style={styles.cardTextWrap}>
@@ -51,7 +35,7 @@ export default function AuthHelpScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Option 3: Help Center */}
+        {/* Option 2: Help Center */}
         <TouchableOpacity style={styles.card} onPress={handleHelpCenter} activeOpacity={0.8}>
           <Ionicons name="help-circle-outline" size={24} color="#059669" style={styles.cardIcon} />
           <View style={styles.cardTextWrap}>

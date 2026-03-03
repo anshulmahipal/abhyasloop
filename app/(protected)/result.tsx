@@ -113,7 +113,7 @@ export default function ResultPage() {
         if (fetchError || !data) {
           console.error('Error fetching quiz attempt:', fetchError);
           logger.error('Failed to fetch quiz attempt', fetchError);
-          throw new Error('Failed to load quiz results');
+          throw new Error('Failed to load exam results');
         }
 
         setAttemptData(data as QuizAttemptWithQuiz);
@@ -127,7 +127,7 @@ export default function ResultPage() {
         logger.error('Failed to load result data', err);
         const errorMessage = err instanceof Error
           ? err.message
-          : 'Failed to load quiz results. Please try again.';
+          : 'Failed to load exam results. Please try again.';
         setError(errorMessage);
       } finally {
         setIsLoading(false);
@@ -428,7 +428,7 @@ export default function ResultPage() {
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
       <View style={[styles.container, isMobile ? styles.containerMobile : styles.containerDesktop]}>
         {/* Header */}
-        <Text style={styles.header}>Quiz Completed!</Text>
+        <Text style={styles.header}>Exam Completed!</Text>
 
         {/* Score Card */}
         <View style={styles.scoreCard}>
@@ -476,7 +476,7 @@ export default function ResultPage() {
         {/* Quiz Details */}
         {attemptData.generated_quizzes && (
           <View style={styles.detailsCard}>
-            <Text style={styles.detailsTitle}>Quiz Details</Text>
+            <Text style={styles.detailsTitle}>Exam Details</Text>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Topic:</Text>
               <Text style={styles.detailValue}>{attemptData.generated_quizzes.topic}</Text>

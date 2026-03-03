@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, processColor, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -185,19 +185,19 @@ export default function ProfilePage() {
         <View style={styles.headerSection}>
           <View style={styles.avatarContainer}>
             {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarText}>
                   {displayName.charAt(0).toUpperCase()}
                 </Text>
               </View>
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Ionicons name="person" size={60} color="#059669" />
-              </View>
             )}
           </View>
           <View style={styles.nameRow}>
-            <Text style={styles.userName}>{displayName}</Text>
+            <Text style={styles.userName} numberOfLines={1}>
+              {displayName}
+            </Text>
             <TouchableOpacity
               onPress={() => router.push('/(protected)/profile/edit')}
               activeOpacity={0.7}
@@ -259,6 +259,7 @@ export default function ProfilePage() {
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.5}
+              ellipsizeMode="tail"
             >
               {currentFocus || 'None'}
             </Text>
@@ -273,14 +274,19 @@ export default function ProfilePage() {
           onPress={() => router.push('/(protected)/stats')}
           activeOpacity={0.7}
         >
-          <Ionicons name="stats-chart-outline" size={22} color="#4b5563" />
+          <View style={styles.settingsIconWrap}>
+            <Ionicons name="stats-chart" size={20} color="#059669" />
+          </View>
           <Text style={styles.settingsLabel}>Stats</Text>
           <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
         </TouchableOpacity>
 
         {/* Performance Chart Section */}
         <View style={styles.chartSection}>
-          <Text style={styles.sectionTitle}>Performance Trend</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="trending-up" size={22} color="#059669" style={styles.sectionIcon} />
+            <Text style={styles.sectionTitle}>Performance Trend</Text>
+          </View>
           <View style={styles.chartCard}>
             {isLoadingChart ? (
               <View style={styles.chartLoadingContainer}>
@@ -288,7 +294,16 @@ export default function ProfilePage() {
               </View>
             ) : chartData.length === 0 ? (
               <View style={styles.chartEmptyContainer}>
-                <Text style={styles.chartEmptyText}>Play a quiz to unlock your trend graph!</Text>
+                <Ionicons name="trending-up-outline" size={48} color="#cbd5e1" style={styles.chartEmptyIcon} />
+                <Text style={styles.chartEmptyText}>Play an exam to unlock your trend graph</Text>
+                <TouchableOpacity
+                  style={styles.chartEmptyCta}
+                  onPress={() => router.push('/(protected)/quiz/config')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.chartEmptyCtaText}>Start a quiz</Text>
+                  <Ionicons name="arrow-forward" size={16} color="#fff" />
+                </TouchableOpacity>
               </View>
             ) : (
               <LineChart
@@ -317,7 +332,13 @@ export default function ProfilePage() {
 
         {/* Badges Section */}
         <View style={styles.badgesSection}>
-          <Text style={styles.sectionTitle}>Achievements</Text>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="trophy" size={22} color="#059669" style={styles.sectionIcon} />
+            <View>
+              <Text style={styles.sectionTitle}>Achievements</Text>
+              <Text style={styles.sectionSubtitle}>Earn coins to unlock badges</Text>
+            </View>
+          </View>
           <View style={styles.badgesGrid}>
             {badges.map((badge) => (
               <View
@@ -385,7 +406,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#e0f2fe',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -398,6 +419,18 @@ const styles = StyleSheet.create({
     elevation: 5,
     borderWidth: 4,
     borderColor: '#059669',
+  },
+  avatarImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
+    borderColor: '#059669',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
   avatarText: {
     fontSize: 48,
@@ -433,24 +466,47 @@ const styles = StyleSheet.create({
   settingsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     backgroundColor: '#ffffff',
     marginHorizontal: 20,
-    marginBottom: 32,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    marginBottom: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  settingsIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(5, 150, 105, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   settingsLabel: {
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
     color: '#1a1a1a',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 10,
+  },
+  sectionIcon: {
+    marginRight: 2,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 2,
+    fontWeight: '500',
   },
   statCard: {
     flex: 1,
@@ -519,11 +575,31 @@ const styles = StyleSheet.create({
     height: 200,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  chartEmptyIcon: {
+    marginBottom: 12,
   },
   chartEmptyText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: '#64748b',
     textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  chartEmptyCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#059669',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  chartEmptyCtaText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
   badgesSection: {
     paddingHorizontal: 20,
@@ -533,7 +609,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#1a1a1a',
-    marginBottom: 16,
   },
   badgesGrid: {
     flexDirection: 'row',

@@ -25,15 +25,9 @@ export function Navbar() {
         <div className="flex items-center gap-4">
           <a
             href={APP_BASE}
-            className="text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
-          >
-            Login
-          </a>
-          <a
-            href={APP_BASE}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
           >
-            Sign Up Free
+            Login/Sign Up
           </a>
         </div>
       </nav>

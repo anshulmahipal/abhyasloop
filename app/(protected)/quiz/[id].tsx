@@ -127,7 +127,7 @@ export default function QuizPage() {
       // Validate response has questions
       if (!response.questions || !Array.isArray(response.questions) || response.questions.length === 0) {
         console.error('Invalid or empty questions array:', response);
-        throw new Error('No questions received from the quiz service');
+        throw new Error('No questions received from the exam service');
       }
 
       // Map API response to Question interface format
@@ -179,7 +179,7 @@ export default function QuizPage() {
     } catch (err) {
       logger.error('Failed to generate quiz', err);
       const error = err instanceof Error ? err : new Error(String(err));
-      const errorMessage = error.message || 'Failed to generate quiz. Please try again.';
+      const errorMessage = error.message || 'Failed to generate exam. Please try again.';
       setError(errorMessage);
       posthog.capture('$exception', {
         $exception_list: [
@@ -214,7 +214,7 @@ export default function QuizPage() {
   const handleFinish = async () => {
     // Validate required data
     if (!quizId) {
-      Alert.alert('Error', 'Quiz ID is missing. Please try again.');
+      Alert.alert('Error', 'Exam ID is missing. Please try again.');
       logger.error('Quiz submission failed: missing quizId', { quizId });
       return;
     }
@@ -347,13 +347,13 @@ export default function QuizPage() {
           logger.error('Failed to save quiz attempt', insertError);
           Alert.alert(
             'Error',
-            insertError.message || 'Failed to save your quiz results. Please try again.'
+            insertError.message || 'Failed to save your exam results. Please try again.'
           );
           setIsSubmitting(false);
           return;
         }
         if (!attemptData?.id) {
-          Alert.alert('Error', 'Failed to save your quiz results. Please try again.');
+          Alert.alert('Error', 'Failed to save your exam results. Please try again.');
           setIsSubmitting(false);
           return;
         }
@@ -602,7 +602,7 @@ export default function QuizPage() {
 
   const handleBack = () => {
     Alert.alert(
-      'Quit Quiz?',
+      'Quit Exam?',
       'Progress will be lost',
       [
         {
@@ -737,7 +737,7 @@ export default function QuizPage() {
   const getUserFriendlyError = (errorMessage: string): string => {
     // Handle technical Edge Function errors
     if (errorMessage.includes('non-2xx status code') || errorMessage.includes('Edge Function')) {
-      return 'Oops! Our quiz generator is having trouble right now. Please try again in a moment.';
+      return 'Oops! Our exam generator is having trouble right now. Please try again in a moment.';
     }
     
     // Handle network errors
@@ -755,7 +755,7 @@ export default function QuizPage() {
       return errorMessage;
     }
     
-    return 'Something went wrong while loading the quiz. Please try again.';
+    return 'Something went wrong while loading the exam. Please try again.';
   };
 
   if (error) {
@@ -767,7 +767,7 @@ export default function QuizPage() {
           <View style={styles.errorIconContainer}>
             <Ionicons name="alert-circle" size={64} color="#059669" />
           </View>
-          <Text style={styles.errorTitle}>Unable to Load Quiz</Text>
+          <Text style={styles.errorTitle}>Unable to Load Exam</Text>
           <Text style={styles.errorText}>{friendlyError}</Text>
           
           {error.includes('non-2xx') && (
@@ -925,7 +925,7 @@ export default function QuizPage() {
               </View>
             ) : (
               <Text style={styles.nextButtonText}>
-                {isLastQuestion ? 'Finish Quiz' : 'Next Question'}
+                {isLastQuestion ? 'Finish Exam' : 'Next Question'}
               </Text>
             )}
           </TouchableOpacity>

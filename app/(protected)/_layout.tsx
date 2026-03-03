@@ -65,12 +65,29 @@ export default function ProtectedLayout() {
             tabBarStyle: { display: 'none' },
           }}
         >
+          <Tabs.Screen name="onboarding" options={{ title: 'Onboarding', href: null }} />
           <Tabs.Screen name="dashboard" options={{ title: 'Home' }} />
           <Tabs.Screen name="leaderboard" options={{ title: 'Rankings' }} />
           <Tabs.Screen name="quiz_start" options={{ title: '' }} />
           <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
           <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
           <Tabs.Screen name="stats" options={{ title: 'Stats' }} />
+      <Tabs.Screen
+        name="goals"
+        options={{
+          href: null,
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="all-exams"
+        options={{
+          href: null,
+          headerShown: false,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
       <Tabs.Screen
         name="quiz"
         options={{
